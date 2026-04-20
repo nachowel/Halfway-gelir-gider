@@ -1,0 +1,1655 @@
+<!DOCTYPE html><html lang="en"><head>
+
+
+<meta charset="utf-8">
+<title>Gider — Wireframe exploration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Kalam:wght@300;400;700&amp;family=Gloria+Hallelujah&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<template id="__bundler_thumbnail" data-bg-color="#f4efe6">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#f4efe6"/>
+    <g text-anchor="middle">
+      <text x="600" y="420" font-family="Caveat, cursive" font-size="220" font-weight="700" fill="#1a1a1a">gider</text>
+      <text x="600" y="490" font-family="monospace" font-size="30" letter-spacing="8" fill="#8a8175">WIREFRAMES</text>
+    </g>
+    <g transform="translate(460 540)" fill="none" stroke="#1a1a1a" stroke-width="4">
+      <rect x="0" y="0" width="120" height="200" rx="18"/>
+      <rect x="140" y="0" width="120" height="200" rx="18"/>
+    </g>
+  </svg>
+</template>
+<style>
+  :root{
+    --paper:#f4efe6;
+    --paper-2:#ebe4d4;
+    --ink:#1a1a1a;
+    --ink-soft:#4a4a4a;
+    --ink-fade:#8a8175;
+    --line:#1a1a1a;
+    --accent-brand:#1d4d54;   /* petrol */
+    --accent-income:#2f6b3d;  /* natural green */
+    --accent-expense:#a64328; /* earthy red */
+    --accent-warn:#c78320;    /* amber */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Kalam',cursive;}
+  body{
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(0,0,0,0.025) 1px, transparent 1.5px),
+      radial-gradient(circle at 70% 60%, rgba(0,0,0,0.02) 1px, transparent 1.5px),
+      radial-gradient(circle at 40% 80%, rgba(0,0,0,0.02) 1px, transparent 1.5px);
+    background-size: 180px 180px, 220px 220px, 160px 160px;
+    min-height:100vh;
+  }
+
+  /* ===== Header ===== */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    background:var(--paper);
+    border-bottom:2px dashed #bab0a0;
+    padding:18px 28px 14px;
+    display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap;
+  }
+  .brand{font-family:'Caveat';font-weight:700;font-size:36px;line-height:1;}
+  .brand small{font-family:'IBM Plex Mono';font-weight:500;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-fade);display:block;margin-top:2px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .tab{
+    font-family:'Caveat';font-weight:600;font-size:20px;
+    padding:6px 16px 4px;background:transparent;color:var(--ink);
+    border:2px solid transparent;border-radius:14px 16px 13px 15px;
+    cursor:pointer;transition:all .15s;
+  }
+  .tab:hover{background:rgba(0,0,0,.04)}
+  .tab.active{border-color:var(--ink);background:#fff8ea;transform:rotate(-.5deg)}
+  .legend{
+    font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-fade);border-left:2px solid #bab0a0;padding-left:12px;line-height:1.5;
+  }
+
+  /* ===== Canvas ===== */
+  main{padding:36px 40px 80px;max-width:1680px;margin:0 auto}
+  .screen-intro{
+    display:flex;align-items:baseline;gap:22px;margin-bottom:10px;flex-wrap:wrap;
+  }
+  .screen-intro h2{
+    font-family:'Caveat';font-weight:700;font-size:42px;margin:0;letter-spacing:-.01em;
+  }
+  .screen-intro .meta{
+    font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-fade);
+  }
+  .screen-desc{font-size:16px;max-width:760px;color:var(--ink-soft);margin:0 0 24px}
+  .variants{
+    display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:40px 28px;
+    justify-items:center;align-items:start;
+  }
+  .variant{width:100%;max-width:380px;display:flex;flex-direction:column;align-items:center}
+  .variant-label{
+    font-family:'Caveat';font-weight:700;font-size:26px;margin-bottom:4px;text-align:center;
+  }
+  .variant-label .num{
+    display:inline-block;width:30px;height:30px;line-height:28px;text-align:center;
+    border:2px solid var(--ink);border-radius:50%;font-size:18px;margin-right:6px;
+    transform:rotate(-3deg);background:#fff8ea;
+  }
+  .variant-caption{
+    font-family:'Kalam';font-size:13px;color:var(--ink-soft);text-align:center;margin:0 0 14px;max-width:320px;line-height:1.4;
+  }
+  .variant-caption em{font-family:'Caveat';font-style:normal;font-weight:700;font-size:16px;background:#fff3b8;padding:0 4px;border-radius:3px;}
+
+  /* ===== Phone frame ===== */
+  .phone{
+    width:340px;height:680px;position:relative;
+    background:#fffdf7;
+    border:2.5px solid var(--line);
+    border-radius:38px;
+    box-shadow: 3px 3px 0 rgba(0,0,0,0.08), 10px 14px 30px rgba(60,45,20,0.12);
+    padding:14px 10px;
+    transform:rotate(-.25deg);
+  }
+  .phone::before{
+    content:"";position:absolute;top:16px;left:50%;transform:translateX(-50%);
+    width:90px;height:18px;background:var(--ink);border-radius:12px;
+  }
+  .phone::after{
+    content:"";position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+    width:120px;height:4px;background:var(--ink);border-radius:3px;opacity:.7;
+  }
+  .screen{
+    width:100%;height:100%;overflow:hidden;border-radius:26px;
+    padding:46px 18px 28px;position:relative;
+    font-family:'Kalam';
+  }
+  .status{
+    position:absolute;top:22px;left:20px;right:20px;
+    display:flex;justify-content:space-between;font-family:'IBM Plex Mono';font-size:10px;color:var(--ink-soft);
+  }
+  .status .dots{letter-spacing:2px}
+
+  /* ===== Wireframe primitives ===== */
+  .ttl{font-family:'Caveat';font-weight:700;font-size:26px;line-height:1;margin:0 0 2px;letter-spacing:-.01em}
+  .sub{font-size:12px;color:var(--ink-fade);margin:0 0 14px}
+  .hwr{font-family:'Caveat';font-weight:700}
+  .mono{font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-fade)}
+  .num-xl{font-family:'Caveat';font-weight:700;font-size:40px;line-height:1;letter-spacing:-.02em}
+  .num-lg{font-family:'Caveat';font-weight:700;font-size:28px;line-height:1}
+  .num-md{font-family:'Caveat';font-weight:700;font-size:20px;line-height:1}
+
+  .card{
+    border:1.8px solid var(--line);border-radius:14px 16px 13px 15px;
+    padding:10px 12px;background:#fffbf0;margin-bottom:10px;position:relative;
+  }
+  .card.shade{background:repeating-linear-gradient(135deg, #fffbf0 0 6px, #f4ecd8 6px 7px);}
+  .card.tape::before{
+    content:"";position:absolute;top:-6px;left:20px;width:46px;height:12px;
+    background:rgba(255, 228, 140, 0.55);border:1px dashed rgba(0,0,0,.2);
+    transform:rotate(-3deg);
+  }
+  .row{display:flex;align-items:center;gap:8px}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+  .pill{border:1.5px solid var(--ink);border-radius:999px;padding:2px 10px;font-size:12px;display:inline-block;background:#fff8ea}
+  .pill.filled{background:var(--ink);color:var(--paper)}
+  .pill.warn{background:#fde5b8;border-color:var(--accent-warn)}
+  .pill.good{background:#d8ecd7;border-color:var(--accent-income)}
+  .pill.bad{background:#f1d7cc;border-color:var(--accent-expense)}
+  .chip{border:1.5px solid #888;border-radius:999px;padding:1px 8px;font-size:11px;margin-right:4px;display:inline-block}
+
+  .scribble{
+    height:6px;background:repeating-linear-gradient(90deg, var(--ink-fade) 0 3px, transparent 3px 7px);
+    border-radius:3px;margin:4px 0;
+  }
+  .scribble.wide{height:10px}
+  .scribble.short{width:50%}
+  .scribble.mid{width:70%}
+
+  .box{border:1.8px dashed #9b9280;border-radius:10px}
+  .box.solid{border-style:solid}
+  .img-ph{
+    border:1.8px dashed #9b9280;border-radius:8px;height:70px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono';font-size:10px;color:var(--ink-fade);
+    background:repeating-linear-gradient(45deg, transparent 0 6px, rgba(0,0,0,.03) 6px 7px);
+  }
+  .bar{height:8px;background:#d4caba;border-radius:4px;position:relative;overflow:hidden}
+  .bar > span{display:block;height:100%;background:var(--ink);border-radius:4px}
+  .bar.good > span{background:var(--accent-income)}
+  .bar.bad > span{background:var(--accent-expense)}
+  .bar.brand > span{background:var(--accent-brand)}
+
+  .divider{border-top:1.5px dashed #b0a794;margin:10px 0}
+  .thin{border-top:1px solid #c7bea9;margin:6px 0}
+
+  .bottomnav{
+    position:absolute;bottom:18px;left:14px;right:14px;
+    border:1.8px solid var(--line);border-radius:18px;background:#fffbf0;
+    display:flex;justify-content:space-around;padding:6px 4px 4px;
+    font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    box-shadow:2px 3px 0 rgba(0,0,0,0.05);
+  }
+  .bottomnav .bn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:2px 4px;color:var(--ink-soft)}
+  .bottomnav .bn.on{color:var(--ink)}
+  .bottomnav .ic{width:18px;height:18px;border:1.5px solid currentColor;border-radius:5px;display:block}
+  .bottomnav .ic.circle{border-radius:50%}
+  .bottomnav .ic.diamond{transform:rotate(45deg);border-radius:3px}
+  .bottomnav .ic.gear{border-radius:50%;position:relative}
+
+  .fab{
+    position:absolute;right:18px;bottom:70px;
+    width:52px;height:52px;border-radius:50%;
+    border:2px solid var(--line);background:var(--accent-brand);color:#fffbf0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Caveat';font-weight:700;font-size:32px;line-height:1;
+    box-shadow:2px 3px 0 rgba(0,0,0,0.25);
+    transform:rotate(-2deg);
+  }
+
+  /* semantic colors inline */
+  .c-brand{color:var(--accent-brand)}
+  .c-inc{color:var(--accent-income)}
+  .c-exp{color:var(--accent-expense)}
+  .c-warn{color:var(--accent-warn)}
+  .bg-warn{background:#fde5b8}
+  .bg-brand-soft{background:#d7e4e6}
+
+  /* screen backgrounds */
+  .screen.paper{background:var(--paper)}
+  .screen.paper2{background:var(--paper-2)}
+  .screen.white{background:#fffdf7}
+
+  /* approach-specific */
+  .hero-net{
+    border:2px solid var(--ink);border-radius:18px;padding:14px;
+    background:#fff8ea;margin-bottom:10px;position:relative;
+  }
+  .hero-net .tag{position:absolute;top:-8px;left:14px;background:var(--paper);padding:0 6px;font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-fade)}
+
+  .spark{height:32px;display:flex;align-items:flex-end;gap:3px}
+  .spark i{display:block;width:6px;background:var(--ink);border-radius:2px 2px 0 0;opacity:.75}
+  .spark.good i{background:var(--accent-income)}
+  .spark.brand i{background:var(--accent-brand)}
+
+  .keypad{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;
+  }
+  .keypad .k{
+    border:1.5px solid var(--ink);border-radius:10px;background:#fff8ea;
+    padding:10px 0;text-align:center;font-family:'Kalam';font-weight:700;font-size:18px;
+  }
+
+  .sheet{
+    position:absolute;left:10px;right:10px;bottom:10px;
+    border:2px solid var(--ink);border-radius:22px 22px 14px 14px;
+    background:#fffbf0;padding:16px 14px 18px;
+    box-shadow: 0 -4px 0 rgba(0,0,0,0.06);
+  }
+  .sheet::before{
+    content:"";display:block;width:44px;height:4px;border-radius:3px;background:#9b9280;margin:0 auto 10px;
+  }
+
+  .list-row{
+    display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px dashed #c7bea9;
+  }
+  .list-row:last-child{border-bottom:none}
+  .av{
+    width:30px;height:30px;border-radius:8px;border:1.5px solid var(--ink);
+    display:flex;align-items:center;justify-content:center;background:#fff8ea;
+    font-family:'Caveat';font-weight:700;font-size:15px;flex-shrink:0;
+  }
+  .av.round{border-radius:50%}
+  .av.brand{background:#d7e4e6;color:var(--accent-brand)}
+  .av.inc{background:#d8ecd7;color:var(--accent-income)}
+  .av.exp{background:#f1d7cc;color:var(--accent-expense)}
+  .av.warn{background:#fde5b8;color:var(--accent-warn)}
+
+  .tab-filter{display:flex;gap:4px;margin-bottom:8px;overflow-x:auto}
+  .tab-filter .chip{white-space:nowrap;font-size:11px;padding:2px 9px}
+
+  /* margins/captions for annotations */
+  .ann{
+    font-family:'Caveat';color:var(--accent-expense);font-weight:600;font-size:16px;
+    transform:rotate(-2deg);white-space:nowrap;
+  }
+  .ann-wrap{position:relative}
+  .ann-arrow{position:absolute;font-family:'Caveat';font-size:15px;color:var(--accent-expense);font-weight:700;pointer-events:none}
+
+  /* sections */
+  section.screen-block{margin-bottom:60px;padding-bottom:30px;border-bottom:2px dashed #bab0a0}
+  section.screen-block:last-child{border-bottom:none}
+
+  /* tweaks */
+  .tweaks{
+    position:fixed;right:18px;bottom:18px;z-index:100;
+    background:#fffbf0;border:2px solid var(--ink);border-radius:14px;
+    padding:12px 14px;box-shadow:3px 4px 0 rgba(0,0,0,0.08);
+    display:none;
+    font-family:'Kalam';
+    max-width:240px;
+  }
+  .tweaks.on{display:block}
+  .tweaks h4{margin:0 0 8px;font-family:'Caveat';font-weight:700;font-size:20px}
+  .tweaks label{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:4px;cursor:pointer}
+  .tweaks .mono{display:block;margin-top:6px}
+
+  body.mode-mono .phone{background:#fff}
+  body.mode-mono .screen{filter:grayscale(1)}
+  body.mode-mono .fab{background:#1a1a1a}
+
+  body.mode-straight .phone{transform:none}
+  body.mode-straight .tab.active{transform:none}
+  body.mode-straight .fab{transform:none}
+  body.mode-straight .card{border-radius:12px}
+
+  /* page section nav */
+  .section-jump{
+    position:sticky;top:66px;background:var(--paper);z-index:40;
+    padding:10px 28px;border-bottom:1px dashed #c7bea9;
+    display:flex;gap:4px;flex-wrap:wrap;
+    font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  }
+  .section-jump a{
+    color:var(--ink-soft);text-decoration:none;padding:4px 10px;border-radius:6px;
+    border:1px dashed transparent;
+  }
+  .section-jump a:hover{border-color:#bab0a0;color:var(--ink)}
+
+  /* micro icons */
+  .mi{display:inline-block;width:14px;height:14px;border:1.4px solid currentColor;vertical-align:middle}
+  .mi.sq{border-radius:3px}
+  .mi.ci{border-radius:50%}
+  .mi.tri{width:0;height:0;border:none;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:12px solid currentColor}
+
+  .receipt{
+    border:1.8px dashed #9b9280;border-radius:8px;padding:8px 10px;
+    background:repeating-linear-gradient(0deg, #fffbf0 0 16px, #f4ecd8 16px 17px);
+  }
+
+  .tag-brand{display:inline-block;padding:1px 8px;border-radius:6px;background:var(--accent-brand);color:#fffdf7;font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+</style>
+</head>
+<body class="" data-cc-id="cc-1" style="background-color: rgb(250, 246, 241); cursor: crosshair;">
+
+<header class="topbar">
+  <div class="brand">gider<small>wireframe · v1 · apr 2026</small></div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="all">everything</button>
+    <button class="tab" data-tab="dashboard">dashboard</button>
+    <button class="tab" data-tab="entry">entry</button>
+    <button class="tab" data-tab="transactions">transactions</button>
+    <button class="tab" data-tab="reports">reports</button>
+    <button class="tab" data-tab="recurring">recurring</button>
+    <button class="tab" data-tab="categories">categories</button>
+    <button class="tab" data-tab="settings">settings</button>
+    <button class="tab" data-tab="sheet">add sheet</button>
+  </nav>
+  <div class="legend">
+    petrol&nbsp;<span style="color:var(--accent-brand)">■</span> &nbsp;income&nbsp;<span style="color:var(--accent-income)">■</span> &nbsp;expense&nbsp;<span style="color:var(--accent-expense)">■</span> &nbsp;warn&nbsp;<span style="color:var(--accent-warn)">■</span>
+  </div>
+</header>
+
+<nav class="section-jump">
+  <span style="color:var(--ink-fade);padding:4px 4px">jump →</span>
+  <a href="#s-dashboard">01 dashboard</a>
+  <a href="#s-entry">02 income / expense entry</a>
+  <a href="#s-transactions">03 transactions</a>
+  <a href="#s-reports">04 monthly report</a>
+  <a href="#s-recurring">05 recurring</a>
+  <a href="#s-categories">06 categories</a>
+  <a href="#s-settings">07 settings</a>
+  <a href="#s-sheet">08 add sheet (FAB)</a>
+</nav>
+
+<main id="canvas">
+
+  <!-- ============================================================ -->
+  <!-- 01 DASHBOARD -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-dashboard" data-section="dashboard" style="">
+    <div class="screen-intro">
+      <h2>01 · Weekly summary dashboard</h2>
+      <span class="meta">home · 4 variants · mon–sun focus</span>
+    </div>
+    <p class="screen-desc">Primary screen. Must answer <em>"what happened this week"</em> in three seconds. Exploring how much hierarchy to give net profit vs breakdown, and how upcoming/recent content stacks below.</p>
+
+    <div class="variants" style="">
+
+      <!-- A: Net-first hero -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>Net-first hero</div>
+        <p class="variant-caption">One giant net-profit number dominates. Income / expense are <em>supporting</em>, cash/card sit as a quieter split.</p>
+        <div class="phone"><div class="screen paper" style="background-color: rgb(230, 243, 244)">
+          <div class="status"><span>09:42</span><span class="dots">● ● ●</span></div>
+          <div class="between" style="margin-bottom:6px">
+            <div>
+              <div class="mono">mon 14 — sun 20 apr</div>
+              <h1 class="ttl">This week</h1>
+            </div>
+            <div class="pill">Week 16 ›</div>
+          </div>
+
+          <div class="hero-net">
+            <span class="tag">net profit</span>
+            <div class="num-xl c-inc">£ 1,284</div>
+            <div class="row" style="margin-top:6px;font-size:12px;color:var(--ink-soft)">
+              <span class="c-inc">▲ £212</span><span>vs last week</span>
+            </div>
+            <div class="spark good" style="margin-top:8px">
+              <i style="height:40%"></i><i style="height:60%"></i><i style="height:45%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:90%"></i>
+            </div>
+          </div>
+
+          <div class="row" style="gap:8px;margin-bottom:10px">
+            <div class="card" style="flex:1;margin:0">
+              <div class="mono">income</div>
+              <div class="num-lg c-inc">£3,420</div>
+            </div>
+            <div class="card" style="flex:1;margin:0">
+              <div class="mono">expenses</div>
+              <div class="num-lg c-exp">£2,136</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="between"><span class="mono">cash vs card</span><span style="font-size:11px;color:var(--ink-fade)">income split</span></div>
+            <div class="between" style="margin:6px 0 4px">
+              <span class="hwr" style="font-size:18px">Cash £1,240</span>
+              <span class="hwr" style="font-size:18px">Card £2,180</span>
+            </div>
+            <div class="bar"><span style="width:36%;background:var(--accent-brand)"></span></div>
+          </div>
+
+          <div class="between" style="margin:12px 0 4px"><span class="ttl" style="font-size:20px">Upcoming</span><span class="mono">see all</span></div>
+          <div class="card">
+            <div class="between">
+              <div>
+                <div class="hwr" style="font-size:16px">Rent · Fri</div>
+                <div style="font-size:11px;color:var(--ink-fade)">in 2 days</div>
+              </div>
+              <div class="num-md c-exp">£850</div>
+            </div>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn on"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- B: Ledger stack -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Ledger stack</div>
+        <p class="variant-caption">Editorial serif feel. Three equal rows — income / expense / net — read top-to-bottom like a paper ledger.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span><span class="dots">● ● ●</span></div>
+          <div class="mono" style="margin-bottom:2px">week of 14 apr</div>
+          <h1 class="ttl" style="font-size:34px">Bu hafta.</h1>
+          <div class="thin"></div>
+
+          <div style="padding:8px 2px 6px">
+            <div class="mono">gelir · income</div>
+            <div class="between">
+              <span class="num-xl c-inc">£3,420</span>
+              <span class="pill good">+8%</span>
+            </div>
+          </div>
+          <div class="thin"></div>
+
+          <div style="padding:8px 2px 6px">
+            <div class="mono">gider · expenses</div>
+            <div class="between">
+              <span class="num-xl c-exp">£2,136</span>
+              <span class="pill bad">+12%</span>
+            </div>
+          </div>
+          <div class="thin"></div>
+
+          <div style="padding:10px 2px 4px;background:#fff8ea;border-radius:10px;padding:10px 12px;margin-top:4px">
+            <div class="mono">net · kalan</div>
+            <div class="num-xl">£1,284</div>
+          </div>
+
+          <div class="row" style="gap:8px;margin-top:12px">
+            <div style="flex:1">
+              <div class="mono">cash</div>
+              <div class="num-md">£1,240</div>
+            </div>
+            <div style="width:1px;background:#c7bea9"></div>
+            <div style="flex:1;text-align:right">
+              <div class="mono">card</div>
+              <div class="num-md">£2,180</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="between"><span class="mono">recent</span><span class="mono">5 items</span></div>
+          <div class="list-row"><span class="av inc">↑</span><div style="flex:1"><div class="hwr" style="font-size:14px">Uber Eats payout</div><div style="font-size:11px;color:var(--ink-fade)">card · today</div></div><div class="num-md c-inc">£186</div></div>
+          <div class="list-row"><span class="av exp">↓</span><div style="flex:1"><div class="hwr" style="font-size:14px">Bakery supplies</div><div style="font-size:11px;color:var(--ink-fade)">cash · yesterday</div></div><div class="num-md c-exp">£42</div></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn on"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- C: 2x2 tile grid -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">C</span>Tile grid</div>
+        <p class="variant-caption">All five numbers live together in a 2×2 + net-wide tile. Fast scan, pairs well with later drill-down.</p>
+        <div class="phone"><div class="screen paper" data-cc-id="cc-2" style="background-color: rgb(230, 243, 244);">
+          <div class="status"><span>09:42</span><span class="dots">● ● ●</span></div>
+          <div class="between" style="margin-bottom:6px">
+            <div>
+              <h1 class="ttl">Bu hafta</h1>
+              <div class="mono">14 – 20 apr · wk 16</div>
+            </div>
+            <div class="av round brand">◑</div>
+          </div>
+
+          <div class="card" style="background:var(--accent-brand);color:#fffdf7;border-color:var(--accent-brand)">
+            <div class="mono" style="color:#d7e4e6">net this week</div>
+            <div class="num-xl" style="color:#fffdf7">£1,284</div>
+            <div style="font-size:12px;opacity:.8">▲ £212 · vs last wk</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="card" style="margin:0"><div class="mono">income</div><div class="num-lg c-inc">£3,420</div><div class="bar good"><span style="width:80%"></span></div></div>
+            <div class="card" style="margin:0"><div class="mono">expenses</div><div class="num-lg c-exp">£2,136</div><div class="bar bad"><span style="width:50%"></span></div></div>
+            <div class="card" style="margin:0"><div class="mono">cash in</div><div class="num-md">£1,240</div></div>
+            <div class="card" style="margin:0"><div class="mono">card in</div><div class="num-md">£2,180</div></div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="between"><span class="hwr" style="font-size:18px">Upcoming · 3</span><span class="mono">see all</span></div>
+          <div class="card tape" style="margin-top:8px">
+            <div class="between"><div><div class="hwr" style="font-size:15px">Rent</div><div class="mono">fri · 18 apr</div></div><div class="num-md c-exp">£850</div></div>
+            <div class="between"><div><div class="hwr" style="font-size:15px">Gas bill</div><div class="mono">sun · 20 apr</div></div><div class="num-md c-exp">£62</div></div>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn on"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- D: Timeline / 7-day spine -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">D</span>7-day spine</div>
+        <p class="variant-caption">Mon→Sun rail at top gives a <em>feel</em> of the week. Numbers summarise below. Good for pattern-spotters.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span><span class="dots">● ● ●</span></div>
+          <div class="mono">this week</div>
+          <h1 class="ttl" style="font-size:30px">Mon 14 → Sun 20</h1>
+
+          <!-- 7 day spine -->
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0 12px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px">M</div><div class="bar good" style="width:100%;height:60px;display:flex;align-items:flex-end"><span style="height:50%;width:100%"></span></div><div style="font-size:10px">£320</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px">T</div><div class="bar good" style="width:100%;height:60px;display:flex;align-items:flex-end"><span style="height:70%;width:100%"></span></div><div style="font-size:10px">£450</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px">W</div><div class="bar good" style="width:100%;height:60px;display:flex;align-items:flex-end"><span style="height:40%;width:100%"></span></div><div style="font-size:10px">£280</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px">T</div><div class="bar good" style="width:100%;height:60px;display:flex;align-items:flex-end"><span style="height:85%;width:100%"></span></div><div style="font-size:10px">£560</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px">F</div><div class="bar good" style="width:100%;height:60px;display:flex;align-items:flex-end"><span style="height:90%;width:100%"></span></div><div style="font-size:10px;font-weight:700">£640</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px;color:var(--accent-brand)">S</div><div class="bar" style="width:100%;height:60px;display:flex;align-items:flex-end;background:#fde5b8"><span style="height:30%;width:100%;background:var(--accent-warn)"></span></div><div style="font-size:10px;color:var(--accent-warn)">now</div></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:9px;color:var(--ink-fade)">S</div><div class="box" style="width:100%;height:60px;background:transparent"></div><div style="font-size:10px;color:var(--ink-fade)">—</div></div>
+          </div>
+
+          <div class="card">
+            <div class="between">
+              <div><div class="mono">income</div><div class="num-md c-inc">£2,250</div></div>
+              <div><div class="mono">expense</div><div class="num-md c-exp">£1,440</div></div>
+              <div><div class="mono">net</div><div class="num-md">£810</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="between"><span class="hwr" style="font-size:15px">Cash</span><span class="num-md">£980</span></div>
+            <div class="between"><span class="hwr" style="font-size:15px">Card</span><span class="num-md">£1,270</span></div>
+          </div>
+          <div class="between" style="margin-top:6px">
+            <span class="hwr" style="font-size:16px">Next up</span>
+            <span class="pill warn">rent · fri</span>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn on"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 02 ENTRY SCREENS -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-entry" data-section="entry" style="">
+    <div class="screen-intro">
+      <h2>02 · Income &amp; expense entry</h2>
+      <span class="meta">fast path · target &lt; 60 seconds</span>
+    </div>
+    <p class="screen-desc">Shape of the form dominates the feel. <em>A</em> classic form, <em>B</em> amount-first with big keypad, <em>C</em> stepped (one question at a time). Same design system, very different ergonomics.</p>
+
+    <div class="variants" style="">
+
+      <!-- A: Classic form -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>Classic form</div>
+        <p class="variant-caption">All fields visible. Familiar. Scroll to save. Works well for expense (more fields).</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="mono">← back</span><span class="tag-brand">EXPENSE</span></div>
+          <h1 class="ttl" style="margin-top:4px">Gider ekle</h1>
+          <div class="sub">new expense</div>
+
+          <div class="card"><div class="mono">amount · £</div><div class="num-xl c-exp">42.00</div></div>
+
+          <div class="card">
+            <div class="mono">category</div>
+            <div class="row" style="flex-wrap:wrap;gap:4px;margin-top:4px">
+              <span class="pill filled">Supplies</span>
+              <span class="pill">Rent</span><span class="pill">Fuel</span><span class="pill">+</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="mono">payment</div>
+            <div class="row" style="gap:6px;margin-top:4px">
+              <span class="pill">Cash</span><span class="pill filled">Card</span><span class="pill">Transfer</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="mono">date</div>
+            <div class="between"><span class="hwr" style="font-size:16px">Wed 16 Apr</span><span class="mono">today</span></div>
+          </div>
+          <div class="card">
+            <div class="mono">supplier / note</div>
+            <div class="scribble mid"></div>
+          </div>
+          <div class="card">
+            <div class="mono">receipt</div>
+            <div class="img-ph" style="margin-top:4px">+ add photo</div>
+          </div>
+
+          <div style="position:absolute;left:14px;right:14px;bottom:14px">
+            <button style="width:100%;border:2px solid var(--ink);background:var(--accent-brand);color:#fffdf7;padding:12px;border-radius:14px;font-family:'Caveat';font-weight:700;font-size:22px;box-shadow:2px 2px 0 rgba(0,0,0,.12)">Save expense</button>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- B: Amount-first keypad -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Amount-first</div>
+        <p class="variant-caption">Big number + <em>custom keypad</em>. Feels like a point-of-sale. Fastest for repeat entries.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="mono">× close</span><div class="row" style="gap:4px"><span class="pill">income</span><span class="pill filled">expense</span></div></div>
+
+          <div style="text-align:center;padding:18px 0 8px">
+            <div class="mono">amount</div>
+            <div class="num-xl c-exp" style="font-size:64px">£42.<span style="opacity:.4">00</span></div>
+            <div style="font-size:12px;color:var(--ink-fade)">tap to edit</div>
+          </div>
+
+          <div class="row" style="gap:4px;flex-wrap:wrap;justify-content:center;margin-bottom:8px">
+            <span class="pill">Supplies</span>
+            <span class="pill filled">Fuel</span>
+            <span class="pill">Rent</span>
+            <span class="pill">Food</span>
+            <span class="pill">+ more</span>
+          </div>
+
+          <div class="row" style="gap:4px;justify-content:center;margin-bottom:8px">
+            <span class="pill">Cash</span><span class="pill filled">Card</span><span class="pill">Wire</span>
+          </div>
+
+          <div class="keypad">
+            <div class="k">1</div><div class="k">2</div><div class="k">3</div>
+            <div class="k">4</div><div class="k">5</div><div class="k">6</div>
+            <div class="k">7</div><div class="k">8</div><div class="k">9</div>
+            <div class="k">.</div><div class="k">0</div><div class="k">⌫</div>
+          </div>
+
+          <div class="row" style="gap:6px;margin-top:8px">
+            <span class="pill" style="flex:1;text-align:center">📷 receipt</span>
+            <span class="pill" style="flex:1;text-align:center">✎ note</span>
+          </div>
+
+          <div style="position:absolute;left:14px;right:14px;bottom:14px">
+            <button style="width:100%;border:2px solid var(--ink);background:var(--accent-brand);color:#fffdf7;padding:10px;border-radius:14px;font-family:'Caveat';font-weight:700;font-size:20px">Save</button>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- C: Stepped / focus -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">C</span>Stepped focus</div>
+        <p class="variant-caption">One question per screen. Very calm. Adds taps but feels editorial. (Shown: step 2 of 4.)</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+
+          <div class="between">
+            <span class="mono">← 1/4</span>
+            <div class="row" style="gap:3px">
+              <span style="width:22px;height:3px;background:var(--ink);border-radius:2px"></span>
+              <span style="width:22px;height:3px;background:var(--ink);border-radius:2px"></span>
+              <span style="width:22px;height:3px;background:#c7bea9;border-radius:2px"></span>
+              <span style="width:22px;height:3px;background:#c7bea9;border-radius:2px"></span>
+            </div>
+            <span class="mono">skip</span>
+          </div>
+
+          <div style="padding:20px 0 6px">
+            <div class="mono">step 2</div>
+            <h1 class="ttl" style="font-size:32px">Hangi kategori?</h1>
+            <div class="sub">pick a category — you can add more later</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="card" style="text-align:center;padding:18px 6px;margin:0"><div class="num-md">🛒</div><div class="hwr" style="font-size:16px">Supplies</div></div>
+            <div class="card" style="text-align:center;padding:18px 6px;margin:0;background:#d7e4e6;border-color:var(--accent-brand)"><div class="num-md">⛽</div><div class="hwr" style="font-size:16px">Fuel</div></div>
+            <div class="card" style="text-align:center;padding:18px 6px;margin:0"><div class="num-md">🏠</div><div class="hwr" style="font-size:16px">Rent</div></div>
+            <div class="card" style="text-align:center;padding:18px 6px;margin:0"><div class="num-md">🍞</div><div class="hwr" style="font-size:16px">Food</div></div>
+            <div class="card" style="text-align:center;padding:18px 6px;margin:0"><div class="num-md">⚡</div><div class="hwr" style="font-size:16px">Utils</div></div>
+            <div class="card" style="text-align:center;padding:18px 6px;margin:0"><div class="num-md">+</div><div class="hwr" style="font-size:16px">New</div></div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="card">
+            <div class="mono">so far</div>
+            <div class="between">
+              <span class="hwr" style="font-size:16px">Amount</span>
+              <span class="num-md c-exp">£42</span>
+            </div>
+          </div>
+
+          <div style="position:absolute;left:14px;right:14px;bottom:14px">
+            <button style="width:100%;border:2px solid var(--ink);background:var(--accent-brand);color:#fffdf7;padding:12px;border-radius:14px;font-family:'Caveat';font-weight:700;font-size:22px">Next →</button>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- D: Income variant (classic, but green) -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">D</span>Income twin</div>
+        <p class="variant-caption">Same shape as A, tuned for income: adds <em>platform</em> field, drops receipt, green accent.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="mono">← back</span><span class="tag-brand" style="background:var(--accent-income)">INCOME</span></div>
+          <h1 class="ttl" style="margin-top:4px">Gelir ekle</h1>
+          <div class="sub">new income entry</div>
+
+          <div class="card" style="background:#d8ecd7;border-color:var(--accent-income)">
+            <div class="mono">amount · £</div>
+            <div class="num-xl c-inc">186.00</div>
+          </div>
+
+          <div class="card">
+            <div class="mono">platform</div>
+            <div class="row" style="gap:4px;margin-top:4px;flex-wrap:wrap">
+              <span class="pill filled">Uber Eats</span>
+              <span class="pill">Deliveroo</span>
+              <span class="pill">Walk-in</span>
+              <span class="pill">+</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="mono">payment</div>
+            <div class="row" style="gap:6px;margin-top:4px">
+              <span class="pill filled">Card</span><span class="pill">Cash</span><span class="pill">Transfer</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="mono">category</div>
+            <div class="between"><span class="hwr" style="font-size:16px">Food sales</span><span class="mono">change</span></div>
+          </div>
+          <div class="card">
+            <div class="mono">date</div>
+            <div class="between"><span class="hwr" style="font-size:16px">Wed 16 Apr</span><span class="mono">today</span></div>
+          </div>
+          <div class="card">
+            <div class="mono">note</div>
+            <div class="scribble short"></div>
+          </div>
+
+          <div style="position:absolute;left:14px;right:14px;bottom:14px">
+            <button style="width:100%;border:2px solid var(--ink);background:var(--accent-income);color:#fffdf7;padding:12px;border-radius:14px;font-family:'Caveat';font-weight:700;font-size:22px">Save income</button>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 03 TRANSACTIONS -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-transactions" data-section="transactions" style="">
+    <div class="screen-intro">
+      <h2>03 · Transactions list</h2>
+      <span class="meta">scan · filter · edit</span>
+    </div>
+    <p class="screen-desc">How we group matters. <em>A</em> groups by day with running totals, <em>B</em> is a flat feed with aggressive filters, <em>C</em> splits income / expense into tabs.</p>
+
+    <div class="variants" style="">
+
+      <!-- A: Grouped by day -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>By day + running</div>
+        <p class="variant-caption">Sticky day headers each showing net for the day. Good narrative scan.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><h1 class="ttl">All items</h1><div class="row" style="gap:4px"><span class="pill">⌕</span><span class="pill">⚙</span></div></div>
+          <div class="tab-filter">
+            <span class="chip" style="background:var(--ink);color:var(--paper);border-color:var(--ink)">This week</span>
+            <span class="chip">All</span>
+            <span class="chip">Expense</span>
+            <span class="chip">Income</span>
+            <span class="chip">Card</span>
+            <span class="chip">Cash</span>
+          </div>
+
+          <div class="between" style="background:var(--paper-2);padding:4px 8px;border-radius:8px;margin-bottom:4px">
+            <span class="hwr" style="font-size:15px">Wed 16 Apr</span>
+            <span class="mono">net +£144</span>
+          </div>
+          <div class="list-row"><span class="av inc">↑</span><div style="flex:1"><div class="hwr" style="font-size:14px">Uber Eats payout</div><div class="mono">food · card</div></div><div class="num-md c-inc">£186</div></div>
+          <div class="list-row"><span class="av exp">↓</span><div style="flex:1"><div class="hwr" style="font-size:14px">Fuel · Shell</div><div class="mono">fuel · card</div></div><div class="num-md c-exp">£42</div></div>
+
+          <div class="between" style="background:var(--paper-2);padding:4px 8px;border-radius:8px;margin:8px 0 4px">
+            <span class="hwr" style="font-size:15px">Tue 15 Apr</span>
+            <span class="mono">net +£212</span>
+          </div>
+          <div class="list-row"><span class="av inc">↑</span><div style="flex:1"><div class="hwr" style="font-size:14px">Walk-in sales</div><div class="mono">food · cash</div></div><div class="num-md c-inc">£320</div></div>
+          <div class="list-row"><span class="av exp">↓</span><div style="flex:1"><div class="hwr" style="font-size:14px">Bakery supplies</div><div class="mono">supplies · cash</div></div><div class="num-md c-exp">£108</div></div>
+
+          <div class="between" style="background:var(--paper-2);padding:4px 8px;border-radius:8px;margin:8px 0 4px">
+            <span class="hwr" style="font-size:15px">Mon 14 Apr</span>
+            <span class="mono">net +£196</span>
+          </div>
+          <div class="list-row"><span class="av inc">↑</span><div style="flex:1"><div class="hwr" style="font-size:14px">Deliveroo</div><div class="mono">food · card</div></div><div class="num-md c-inc">£240</div></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn on"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- B: Search-first -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Search-first</div>
+        <p class="variant-caption">Big search + filter chips, flat list. Best when the user is <em>looking for something</em> specific.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <h1 class="ttl">Kayıtlar</h1>
+
+          <div class="card" style="padding:10px">
+            <div class="row"><span>⌕</span><div class="scribble" style="flex:1"></div></div>
+          </div>
+
+          <div class="tab-filter">
+            <span class="chip">⟟ date</span>
+            <span class="chip">⚑ type</span>
+            <span class="chip">⊞ category</span>
+            <span class="chip">💳 payment</span>
+          </div>
+
+          <div class="mono">showing 24 results</div>
+          <div class="thin"></div>
+
+          <div class="list-row"><span class="av exp">⛽</span><div style="flex:1"><div class="hwr" style="font-size:14px">Shell · Fuel</div><div class="mono">16 apr · card</div></div><div class="num-md c-exp">£42</div></div>
+          <div class="list-row"><span class="av inc">🍱</span><div style="flex:1"><div class="hwr" style="font-size:14px">Uber Eats</div><div class="mono">16 apr · card</div></div><div class="num-md c-inc">£186</div></div>
+          <div class="list-row"><span class="av warn">🧾</span><div style="flex:1"><div class="hwr" style="font-size:14px">Rent</div><div class="mono">15 apr · bank</div></div><div class="num-md c-exp">£850</div></div>
+          <div class="list-row"><span class="av inc">💰</span><div style="flex:1"><div class="hwr" style="font-size:14px">Walk-in</div><div class="mono">15 apr · cash</div></div><div class="num-md c-inc">£320</div></div>
+          <div class="list-row"><span class="av exp">🛒</span><div style="flex:1"><div class="hwr" style="font-size:14px">Bakery supplies</div><div class="mono">15 apr · cash</div></div><div class="num-md c-exp">£108</div></div>
+          <div class="list-row"><span class="av inc">🍱</span><div style="flex:1"><div class="hwr" style="font-size:14px">Deliveroo</div><div class="mono">14 apr · card</div></div><div class="num-md c-inc">£240</div></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn on"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- C: tabbed income/expense with running totals -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">C</span>Split tabs</div>
+        <p class="variant-caption">Gelir / Gider tabs at top, week total chip on each. Removes need for per-row type icon.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <h1 class="ttl">İşlemler</h1>
+
+          <div class="row" style="gap:0;margin-top:6px;border:1.8px solid var(--ink);border-radius:12px;overflow:hidden;padding:0">
+            <div style="flex:1;padding:8px;text-align:center;background:var(--accent-income);color:#fffdf7">
+              <div class="mono" style="color:#d8ecd7">gelir</div>
+              <div class="hwr" style="font-size:18px">£3,420</div>
+            </div>
+            <div style="flex:1;padding:8px;text-align:center">
+              <div class="mono">gider</div>
+              <div class="hwr" style="font-size:18px">£2,136</div>
+            </div>
+          </div>
+
+          <div class="tab-filter" style="margin-top:8px">
+            <span class="chip" style="background:var(--ink);color:var(--paper);border-color:var(--ink)">This week</span>
+            <span class="chip">Month</span>
+            <span class="chip">All</span>
+          </div>
+
+          <div class="mono">income · 8 items</div>
+          <div class="thin"></div>
+          <div class="list-row"><span class="av inc">U</span><div style="flex:1"><div class="hwr" style="font-size:14px">Uber Eats</div><div class="mono">wed · card</div></div><div class="num-md c-inc">£186</div></div>
+          <div class="list-row"><span class="av inc">W</span><div style="flex:1"><div class="hwr" style="font-size:14px">Walk-in</div><div class="mono">tue · cash</div></div><div class="num-md c-inc">£320</div></div>
+          <div class="list-row"><span class="av inc">D</span><div style="flex:1"><div class="hwr" style="font-size:14px">Deliveroo</div><div class="mono">mon · card</div></div><div class="num-md c-inc">£240</div></div>
+          <div class="list-row"><span class="av inc">U</span><div style="flex:1"><div class="hwr" style="font-size:14px">Uber Eats</div><div class="mono">mon · card</div></div><div class="num-md c-inc">£168</div></div>
+          <div class="list-row"><span class="av inc">W</span><div style="flex:1"><div class="hwr" style="font-size:14px">Walk-in</div><div class="mono">sun · cash</div></div><div class="num-md c-inc">£412</div></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn on"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 04 MONTHLY REPORT -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-reports" data-section="reports" style="">
+    <div class="screen-intro">
+      <h2>04 · Monthly profit &amp; loss</h2>
+      <span class="meta">second-level depth</span>
+    </div>
+    <p class="screen-desc">Light data viz, never a dashboard wall. Three approaches to the <em>shape</em> of the month.</p>
+
+    <div class="variants" style="">
+
+      <!-- A: P&L statement -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>P&amp;L statement</div>
+        <p class="variant-caption">Reads like a real statement. Income / expense / net ruled off. Category bars below.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="mono">reports</span><span class="pill">April ▾</span></div>
+          <h1 class="ttl" style="font-size:30px">Nisan 2026</h1>
+          <div class="sub">monthly profit &amp; loss</div>
+
+          <div class="card" style="padding:14px 14px 10px">
+            <div class="between"><span class="mono">income</span><span class="num-lg c-inc">£14,820</span></div>
+            <div class="thin"></div>
+            <div class="between"><span class="mono">expenses</span><span class="num-lg c-exp">£9,140</span></div>
+            <div style="border-top:2.5px solid var(--ink);margin:6px 0 4px"></div>
+            <div class="between"><span class="hwr" style="font-size:20px">NET</span><span class="num-xl">£5,680</span></div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="mono" style="margin-bottom:6px">category · expenses</div>
+          <div style="margin-bottom:8px">
+            <div class="between" style="font-size:12px"><span>Rent</span><span class="hwr">£3,400</span></div>
+            <div class="bar bad"><span style="width:78%"></span></div>
+          </div>
+          <div style="margin-bottom:8px">
+            <div class="between" style="font-size:12px"><span>Supplies</span><span class="hwr">£2,120</span></div>
+            <div class="bar bad"><span style="width:52%"></span></div>
+          </div>
+          <div style="margin-bottom:8px">
+            <div class="between" style="font-size:12px"><span>Fuel</span><span class="hwr">£1,380</span></div>
+            <div class="bar bad"><span style="width:38%"></span></div>
+          </div>
+          <div style="margin-bottom:8px">
+            <div class="between" style="font-size:12px"><span>Utilities</span><span class="hwr">£890</span></div>
+            <div class="bar bad"><span style="width:24%"></span></div>
+          </div>
+          <div style="margin-bottom:8px">
+            <div class="between" style="font-size:12px"><span>Other</span><span class="hwr">£1,350</span></div>
+            <div class="bar bad"><span style="width:32%"></span></div>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn on"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- B: week-by-week comparison -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Weeks compared</div>
+        <p class="variant-caption">4 weeks side by side — income / expense / net per week. Pattern-first, trust-building.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="pill">◀ Mar</span><span class="hwr" style="font-size:22px">April 2026</span><span class="pill">May ▶</span></div>
+
+          <div class="card" style="margin-top:10px">
+            <div class="between"><div class="mono">net · month</div><span class="pill good">+14%</span></div>
+            <div class="num-xl">£5,680</div>
+          </div>
+
+          <div class="mono" style="margin:4px 0 6px">weekly comparison</div>
+
+          <div style="display:grid;grid-template-columns:48px 1fr 50px;gap:6px;align-items:center;margin-bottom:6px">
+            <div class="hwr" style="font-size:14px">W13</div>
+            <div>
+              <div class="bar good" style="margin-bottom:3px"><span style="width:70%"></span></div>
+              <div class="bar bad"><span style="width:45%"></span></div>
+            </div>
+            <div class="hwr" style="font-size:14px;text-align:right">£1,120</div>
+          </div>
+          <div style="display:grid;grid-template-columns:48px 1fr 50px;gap:6px;align-items:center;margin-bottom:6px">
+            <div class="hwr" style="font-size:14px">W14</div>
+            <div>
+              <div class="bar good" style="margin-bottom:3px"><span style="width:82%"></span></div>
+              <div class="bar bad"><span style="width:52%"></span></div>
+            </div>
+            <div class="hwr" style="font-size:14px;text-align:right">£1,340</div>
+          </div>
+          <div style="display:grid;grid-template-columns:48px 1fr 50px;gap:6px;align-items:center;margin-bottom:6px">
+            <div class="hwr" style="font-size:14px">W15</div>
+            <div>
+              <div class="bar good" style="margin-bottom:3px"><span style="width:90%"></span></div>
+              <div class="bar bad"><span style="width:62%"></span></div>
+            </div>
+            <div class="hwr" style="font-size:14px;text-align:right">£1,936</div>
+          </div>
+          <div style="display:grid;grid-template-columns:48px 1fr 50px;gap:6px;align-items:center;margin-bottom:10px">
+            <div class="hwr" style="font-size:14px;color:var(--accent-brand)">W16</div>
+            <div>
+              <div class="bar good" style="margin-bottom:3px"><span style="width:76%"></span></div>
+              <div class="bar bad"><span style="width:48%"></span></div>
+            </div>
+            <div class="hwr" style="font-size:14px;text-align:right">£1,284</div>
+          </div>
+
+          <div class="mono">top 3 categories</div>
+          <div class="thin"></div>
+          <div class="between" style="padding:4px 0"><span class="hwr" style="font-size:14px">Rent</span><span class="num-md c-exp">£3,400</span></div>
+          <div class="between" style="padding:4px 0"><span class="hwr" style="font-size:14px">Supplies</span><span class="num-md c-exp">£2,120</span></div>
+          <div class="between" style="padding:4px 0"><span class="hwr" style="font-size:14px">Fuel</span><span class="num-md c-exp">£1,380</span></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn on"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- C: Editorial storybook -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">C</span>Editorial month</div>
+        <p class="variant-caption">Feels like a one-page magazine spread. Headline number, a pull quote, category chips.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="mono">monthly report · 04</div>
+          <h1 class="ttl" style="font-size:34px;line-height:1">Nisan oldukça iyi geçti.</h1>
+          <div style="font-size:13px;color:var(--ink-soft);margin-top:6px">April 2026 · 30 days · 142 entries</div>
+
+          <div style="margin:14px 0 6px">
+            <div class="mono">net profit</div>
+            <div class="num-xl" style="font-size:56px">£5,680</div>
+            <div style="font-size:13px"><span class="c-inc hwr" style="font-size:15px">+14%</span> <span style="color:var(--ink-fade)">vs March</span></div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="between"><span class="mono">best day</span><span class="hwr" style="font-size:16px">Fri 18 · £640</span></div>
+          <div class="between"><span class="mono">quietest</span><span class="hwr" style="font-size:16px">Sun 6 · £0</span></div>
+          <div class="between"><span class="mono">biggest bite</span><span class="hwr" style="font-size:16px c-exp">Rent · £3,400</span></div>
+
+          <div class="divider"></div>
+
+          <div class="row" style="gap:4px;flex-wrap:wrap">
+            <span class="pill bad">Rent £3.4k</span>
+            <span class="pill bad">Supplies £2.1k</span>
+            <span class="pill bad">Fuel £1.4k</span>
+            <span class="pill bad">Utils £.9k</span>
+            <span class="pill good">Food sales £9.2k</span>
+            <span class="pill good">Catering £5.6k</span>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn on"><span class="ic circle"></span>Reports</div>
+            <div class="bn"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 05 RECURRING -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-recurring" data-section="recurring" style="">
+    <div class="screen-intro">
+      <h2>05 · Recurring expenses</h2>
+      <span class="meta">don't miss a bill</span>
+    </div>
+    <p class="screen-desc">Tension between <em>timeline</em> (when's next) and <em>list</em> (what do I pay). Two approaches.</p>
+
+    <div class="variants" style="">
+
+      <!-- A: calendar spine -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>Next-up list</div>
+        <p class="variant-caption">Sorted by next-due. Status chip (today / in X days / late) drives color.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <h1 class="ttl">Tekrarlayan</h1>
+          <div class="sub">8 active · £1,620 / month</div>
+
+          <div class="card" style="border-color:var(--accent-expense);background:#f1d7cc">
+            <div class="between">
+              <div>
+                <span class="pill bad">late · 3d</span>
+                <div class="hwr" style="font-size:20px;margin-top:4px">Gas bill</div>
+                <div class="mono">every month · due 13 apr</div>
+              </div>
+              <div style="text-align:right">
+                <div class="num-lg c-exp">£62</div>
+                <button class="pill filled" style="margin-top:4px">mark paid</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="border-color:var(--accent-warn);background:#fde5b8">
+            <div class="between">
+              <div>
+                <span class="pill warn">in 2 days</span>
+                <div class="hwr" style="font-size:20px;margin-top:4px">Rent</div>
+                <div class="mono">every month · fri 18 apr</div>
+              </div>
+              <div style="text-align:right">
+                <div class="num-lg c-exp">£850</div>
+                <button class="pill" style="margin-top:4px">pay</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="between">
+              <div>
+                <span class="pill">in 6 days</span>
+                <div class="hwr" style="font-size:18px;margin-top:4px">Internet</div>
+                <div class="mono">every month · tue 22 apr</div>
+              </div>
+              <div class="num-lg c-exp">£38</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="between">
+              <div>
+                <span class="pill">in 11 days</span>
+                <div class="hwr" style="font-size:18px;margin-top:4px">Electricity</div>
+                <div class="mono">every month · sun 27 apr</div>
+              </div>
+              <div class="num-lg c-exp">£124</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="between">
+              <div>
+                <span class="pill">next month</span>
+                <div class="hwr" style="font-size:18px;margin-top:4px">Insurance</div>
+                <div class="mono">every month · 3 may</div>
+              </div>
+              <div class="num-lg c-exp">£86</div>
+            </div>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn on"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- B: Month rail -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Month rail</div>
+        <p class="variant-caption">Horizontal month strip above. Tap a day with a dot to jump. Shows rhythm of the month.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><h1 class="ttl">Bills</h1><span class="pill">April ▾</span></div>
+
+          <!-- month strip -->
+          <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:6px 0 10px">
+            <div style="text-align:center"><div class="mono" style="font-size:8px">13</div><div style="width:6px;height:6px;background:var(--accent-expense);border-radius:50%;margin:2px auto"></div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">14</div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">15</div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">16</div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">17</div></div>
+            <div style="text-align:center;background:#fff8ea;border-radius:4px"><div class="mono" style="font-size:8px;font-weight:700">18</div><div style="width:6px;height:6px;background:var(--accent-warn);border-radius:50%;margin:2px auto"></div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">19</div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">20</div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">21</div></div>
+            <div style="text-align:center"><div class="mono" style="font-size:8px">22</div><div style="width:6px;height:6px;background:var(--ink);border-radius:50%;margin:2px auto"></div></div>
+          </div>
+
+          <div class="mono">this month · £1,620</div>
+          <div class="bar bad"><span style="width:42%"></span></div>
+          <div class="between" style="font-size:11px;color:var(--ink-fade);margin-top:3px"><span>£680 paid</span><span>£940 left</span></div>
+
+          <div class="divider"></div>
+
+          <div class="list-row"><span class="av exp">🏠</span><div style="flex:1"><div class="hwr" style="font-size:15px">Rent</div><div class="mono">fri 18 apr · monthly</div></div><div style="text-align:right"><div class="num-md c-exp">£850</div><span class="pill warn" style="font-size:10px">in 2d</span></div></div>
+          <div class="list-row"><span class="av exp">⚡</span><div style="flex:1"><div class="hwr" style="font-size:15px">Gas</div><div class="mono">was due 13 apr</div></div><div style="text-align:right"><div class="num-md c-exp">£62</div><span class="pill bad" style="font-size:10px">late</span></div></div>
+          <div class="list-row"><span class="av">🌐</span><div style="flex:1"><div class="hwr" style="font-size:15px">Internet</div><div class="mono">tue 22 apr · monthly</div></div><div style="text-align:right"><div class="num-md c-exp">£38</div><span class="pill" style="font-size:10px">in 6d</span></div></div>
+          <div class="list-row"><span class="av">💡</span><div style="flex:1"><div class="hwr" style="font-size:15px">Electricity</div><div class="mono">sun 27 apr · monthly</div></div><div style="text-align:right"><div class="num-md c-exp">£124</div><span class="pill" style="font-size:10px">in 11d</span></div></div>
+          <div class="list-row"><span class="av">🛡</span><div style="flex:1"><div class="hwr" style="font-size:15px">Insurance</div><div class="mono">3 may · monthly</div></div><div style="text-align:right"><div class="num-md c-exp">£86</div></div></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn on"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- C: Mark as paid sheet -->
+      <div class="variant">
+        <div class="variant-label"><span class="num">C</span>Mark-paid flow</div>
+        <p class="variant-caption">How the "mark as paid" action feels. Bottom sheet confirms amount + logs an expense.</p>
+        <div class="phone"><div class="screen paper" style="background:#d1cbbb">
+          <!-- dimmed screen underneath -->
+          <div class="status" style="color:#5a5045"><span>09:42</span></div>
+          <h1 class="ttl" style="opacity:.4">Tekrarlayan</h1>
+          <div class="card" style="opacity:.35">
+            <div class="between"><div class="hwr" style="font-size:18px">Rent</div><div class="num-md c-exp">£850</div></div>
+          </div>
+          <div class="card" style="opacity:.35">
+            <div class="between"><div class="hwr" style="font-size:18px">Gas</div><div class="num-md c-exp">£62</div></div>
+          </div>
+
+          <!-- bottom sheet -->
+          <div class="sheet">
+            <div class="mono">confirm payment</div>
+            <h1 class="ttl" style="margin-top:4px">Mark Rent as paid?</h1>
+
+            <div class="card" style="margin-top:8px">
+              <div class="between"><span class="mono">amount</span><span class="num-lg c-exp">£850</span></div>
+              <div class="between" style="margin-top:4px"><span class="mono">paid on</span><span class="hwr" style="font-size:15px">Fri 18 Apr</span></div>
+              <div class="between" style="margin-top:4px"><span class="mono">method</span><span class="pill">Bank transfer ▾</span></div>
+            </div>
+
+            <div style="font-size:12px;color:var(--ink-soft);margin:8px 0">We'll log this as an expense and set next due to <span class="hwr">18 May</span>.</div>
+
+            <div class="row" style="gap:8px">
+              <button class="pill" style="flex:1;padding:10px;text-align:center">Later</button>
+              <button style="flex:2;border:2px solid var(--ink);background:var(--accent-income);color:#fffdf7;padding:10px;border-radius:14px;font-family:'Caveat';font-weight:700;font-size:20px">✓ Paid</button>
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 06 CATEGORIES -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-categories" data-section="categories" style="">
+    <div class="screen-intro">
+      <h2>06 · Category management</h2>
+      <span class="meta">settings-adjacent</span>
+    </div>
+    <p class="screen-desc">Two tones: <em>A</em> a calm list with usage counts, <em>B</em> visual grid with icons.</p>
+
+    <div class="variants" style="">
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>List + counts</div>
+        <p class="variant-caption">Each row shows how much it's used this month. Tap to edit, drag handle to reorder.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="mono">← settings</span><span class="pill filled">+ new</span></div>
+          <h1 class="ttl">Kategoriler</h1>
+
+          <div class="tab-filter">
+            <span class="chip" style="background:var(--ink);color:var(--paper);border-color:var(--ink)">Expense · 7</span>
+            <span class="chip">Income · 3</span>
+          </div>
+
+          <div class="list-row"><span style="color:var(--ink-fade)">⋮⋮</span><span class="av exp">🏠</span><div style="flex:1"><div class="hwr" style="font-size:15px">Rent</div><div class="mono">used 4× · £3,400</div></div><span style="color:var(--ink-fade)">›</span></div>
+          <div class="list-row"><span style="color:var(--ink-fade)">⋮⋮</span><span class="av exp">🛒</span><div style="flex:1"><div class="hwr" style="font-size:15px">Supplies</div><div class="mono">used 18× · £2,120</div></div><span style="color:var(--ink-fade)">›</span></div>
+          <div class="list-row"><span style="color:var(--ink-fade)">⋮⋮</span><span class="av exp">⛽</span><div style="flex:1"><div class="hwr" style="font-size:15px">Fuel</div><div class="mono">used 9× · £1,380</div></div><span style="color:var(--ink-fade)">›</span></div>
+          <div class="list-row"><span style="color:var(--ink-fade)">⋮⋮</span><span class="av exp">⚡</span><div style="flex:1"><div class="hwr" style="font-size:15px">Utilities</div><div class="mono">used 5× · £890</div></div><span style="color:var(--ink-fade)">›</span></div>
+          <div class="list-row"><span style="color:var(--ink-fade)">⋮⋮</span><span class="av exp">🍞</span><div style="flex:1"><div class="hwr" style="font-size:15px">Food</div><div class="mono">used 12× · £640</div></div><span style="color:var(--ink-fade)">›</span></div>
+          <div class="list-row"><span style="color:var(--ink-fade)">⋮⋮</span><span class="av exp">🧾</span><div style="flex:1"><div class="hwr" style="font-size:15px">Other</div><div class="mono">used 6× · £380</div></div><span style="color:var(--ink-fade)">›</span></div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn on"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Icon grid</div>
+        <p class="variant-caption">Less dense. Makes the category <em>feel</em> pickable. Edit flow lives behind any tile.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <div class="between"><span class="mono">← settings</span><span class="pill filled">+ new</span></div>
+          <h1 class="ttl">Kategoriler</h1>
+
+          <div class="mono" style="margin:8px 0 6px">expense · 7</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">🏠</div><div class="hwr" style="font-size:14px">Rent</div><div class="mono">£3.4k</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">🛒</div><div class="hwr" style="font-size:14px">Supplies</div><div class="mono">£2.1k</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">⛽</div><div class="hwr" style="font-size:14px">Fuel</div><div class="mono">£1.4k</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">⚡</div><div class="hwr" style="font-size:14px">Utils</div><div class="mono">£.9k</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">🍞</div><div class="hwr" style="font-size:14px">Food</div><div class="mono">£.6k</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0;border-style:dashed"><div class="num-md">+</div><div class="hwr" style="font-size:14px">New</div></div>
+          </div>
+
+          <div class="mono" style="margin:14px 0 6px">income · 3</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">🍱</div><div class="hwr" style="font-size:14px">Food sales</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">🎉</div><div class="hwr" style="font-size:14px">Catering</div></div>
+            <div class="card" style="text-align:center;padding:14px 4px;margin:0"><div class="num-md">💼</div><div class="hwr" style="font-size:14px">Other</div></div>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn on"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 07 SETTINGS -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-settings" data-section="settings" style="">
+    <div class="screen-intro">
+      <h2>07 · Settings &amp; profile</h2>
+      <span class="meta">single-user · minimal</span>
+    </div>
+    <p class="screen-desc">Not a social app. Settings should feel like a quiet drawer — currency, week start, backup, export, lock.</p>
+
+    <div class="variants" style="">
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>Quiet drawer</div>
+        <p class="variant-caption">Profile card up top, grouped rows below. The business owner's name, not a username.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <h1 class="ttl">Ayarlar</h1>
+          <div class="sub">preferences &amp; account</div>
+
+          <div class="card" style="padding:14px">
+            <div class="row" style="gap:12px">
+              <div class="av round brand" style="width:46px;height:46px;font-size:20px">A</div>
+              <div style="flex:1">
+                <div class="hwr" style="font-size:18px">Ayşe — Little Lane Deli</div>
+                <div class="mono">london · gbp £</div>
+              </div>
+              <span class="mono">edit</span>
+            </div>
+          </div>
+
+          <div class="mono" style="margin:10px 0 4px">preferences</div>
+          <div class="card" style="margin:0">
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Week starts</span><span class="hwr">Monday ▾</span></div>
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Currency</span><span class="hwr">GBP £ ▾</span></div>
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Date format</span><span class="hwr">DD MMM</span></div>
+            <div class="between" style="padding:6px 0"><span>Language</span><span class="hwr">English ▾</span></div>
+          </div>
+
+          <div class="mono" style="margin:10px 0 4px">data</div>
+          <div class="card" style="margin:0">
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Categories</span><span>›</span></div>
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Recurring expenses</span><span>›</span></div>
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Export CSV</span><span>›</span></div>
+            <div class="between" style="padding:6px 0"><span>Backup</span><span class="pill good">auto</span></div>
+          </div>
+
+          <div class="mono" style="margin:10px 0 4px">security</div>
+          <div class="card" style="margin:0">
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>App lock</span><span class="pill">PIN · on</span></div>
+            <div class="between" style="padding:6px 0"><span>Sign out</span><span class="c-exp">›</span></div>
+          </div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn on"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Shortcut tiles</div>
+        <p class="variant-caption">Big tap targets for the 4 things actually used: categories, recurring, export, lock.</p>
+        <div class="phone"><div class="screen paper">
+          <div class="status"><span>09:42</span></div>
+          <h1 class="ttl">Ayarlar</h1>
+
+          <div class="card" style="padding:14px">
+            <div class="row" style="gap:12px">
+              <div class="av round brand" style="width:44px;height:44px;font-size:20px">A</div>
+              <div style="flex:1">
+                <div class="hwr" style="font-size:17px">Little Lane Deli</div>
+                <div class="mono">gbp · week: mon</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <div class="card" style="margin:0;padding:16px"><div class="num-md">⊞</div><div class="hwr" style="font-size:16px">Categories</div><div class="mono">7 expense · 3 inc</div></div>
+            <div class="card" style="margin:0;padding:16px"><div class="num-md">↻</div><div class="hwr" style="font-size:16px">Recurring</div><div class="mono">8 active</div></div>
+            <div class="card" style="margin:0;padding:16px"><div class="num-md">⇪</div><div class="hwr" style="font-size:16px">Export CSV</div><div class="mono">last: 2 apr</div></div>
+            <div class="card" style="margin:0;padding:16px"><div class="num-md">🔒</div><div class="hwr" style="font-size:16px">App lock</div><div class="mono">pin · on</div></div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="card" style="margin:0">
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Week starts</span><span class="hwr">Monday ▾</span></div>
+            <div class="between" style="padding:6px 0;border-bottom:1px dashed #c7bea9"><span>Currency</span><span class="hwr">GBP £ ▾</span></div>
+            <div class="between" style="padding:6px 0"><span>Language</span><span class="hwr">English ▾</span></div>
+          </div>
+
+          <div style="font-size:11px;color:var(--ink-fade);text-align:center;margin-top:10px">gider · v0.1 · private</div>
+
+          <div class="fab">+</div>
+          <div class="bottomnav">
+            <div class="bn"><span class="ic"></span>Summary</div>
+            <div class="bn"><span class="ic"></span>Items</div>
+            <div class="bn"><span class="ic circle"></span>Reports</div>
+            <div class="bn on"><span class="ic"></span>Settings</div>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 08 ADD SHEET -->
+  <!-- ============================================================ -->
+  <section class="screen-block" id="s-sheet" data-section="sheet" style="">
+    <div class="screen-intro">
+      <h2>08 · Add sheet (FAB)</h2>
+      <span class="meta">bottom-sheet · 3 actions</span>
+    </div>
+    <p class="screen-desc">What the floating <em>+</em> opens. Three treatments: a clean list, bold action tiles, or a direct-entry shortcut.</p>
+
+    <div class="variants" style="">
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">A</span>Clean list</div>
+        <p class="variant-caption">Minimum friction. Three rows, dismiss on swipe-down.</p>
+        <div class="phone"><div class="screen paper" style="background:#d1cbbb">
+          <div class="status" style="color:#5a5045"><span>09:42</span></div>
+          <h1 class="ttl" style="opacity:.35">Bu hafta</h1>
+          <div class="hero-net" style="opacity:.35"><span class="tag">net</span><div class="num-xl c-inc">£1,284</div></div>
+
+          <div class="sheet">
+            <div class="mono">add new</div>
+            <h1 class="ttl">What did you just do?</h1>
+
+            <div class="list-row" style="padding:14px 0"><span class="av inc">↑</span><div style="flex:1"><div class="hwr" style="font-size:17px">Gelir ekle</div><div class="mono">income · sale, payout, transfer</div></div><span>›</span></div>
+            <div class="list-row" style="padding:14px 0"><span class="av exp">↓</span><div style="flex:1"><div class="hwr" style="font-size:17px">Gider ekle</div><div class="mono">expense · supplies, fuel…</div></div><span>›</span></div>
+            <div class="list-row" style="padding:14px 0"><span class="av warn">↻</span><div style="flex:1"><div class="hwr" style="font-size:17px">Tekrarlayan gider</div><div class="mono">recurring · rent, bills</div></div><span>›</span></div>
+
+            <button style="width:100%;margin-top:6px;padding:10px;border:1.5px dashed #9b9280;border-radius:12px;background:transparent;font-family:'Kalam';font-size:14px">cancel</button>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">B</span>Bold tiles</div>
+        <p class="variant-caption">Two big colored tiles (the 95% case) + a smaller recurring link. Tap accuracy over elegance.</p>
+        <div class="phone"><div class="screen paper" style="background:#d1cbbb">
+          <div class="status" style="color:#5a5045"><span>09:42</span></div>
+          <h1 class="ttl" style="opacity:.35">Bu hafta</h1>
+          <div class="hero-net" style="opacity:.35"><span class="tag">net</span><div class="num-xl c-inc">£1,284</div></div>
+
+          <div class="sheet">
+            <div class="between"><span class="mono">add new</span><span class="mono">× close</span></div>
+
+            <div class="row" style="gap:8px;margin-top:8px">
+              <button style="flex:1;border:2px solid var(--ink);background:var(--accent-income);color:#fffdf7;padding:22px 10px;border-radius:18px;text-align:left">
+                <div class="hwr" style="font-size:24px;color:#fffdf7">+ Gelir</div>
+                <div class="mono" style="color:#d8ecd7">income</div>
+              </button>
+              <button style="flex:1;border:2px solid var(--ink);background:var(--accent-expense);color:#fffdf7;padding:22px 10px;border-radius:18px;text-align:left">
+                <div class="hwr" style="font-size:24px;color:#fffdf7">− Gider</div>
+                <div class="mono" style="color:#f1d7cc">expense</div>
+              </button>
+            </div>
+
+            <button style="width:100%;margin-top:10px;border:1.8px solid var(--ink);background:#fffbf0;padding:14px;border-radius:14px;text-align:left">
+              <div class="between">
+                <div>
+                  <div class="hwr" style="font-size:18px">↻ Tekrarlayan gider</div>
+                  <div class="mono">a bill that repeats</div>
+                </div>
+                <span>›</span>
+              </div>
+            </button>
+
+            <div style="font-size:11px;color:var(--ink-fade);text-align:center;margin-top:10px">tip: long-press <span class="hwr" style="color:var(--ink)">+</span> for your last entry</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="variant">
+        <div class="variant-label"><span class="num">C</span>Quick-entry</div>
+        <p class="variant-caption">Sheet <em>is</em> the form. Amount + type toggle + one-tap category — 90% of entries done in 3 taps.</p>
+        <div class="phone"><div class="screen paper" style="background:#d1cbbb">
+          <div class="status" style="color:#5a5045"><span>09:42</span></div>
+          <h1 class="ttl" style="opacity:.35">Bu hafta</h1>
+
+          <div class="sheet" style="bottom:10px;top:90px">
+            <div class="between"><span class="mono">quick add</span><span class="mono">× full form →</span></div>
+
+            <div class="row" style="gap:0;margin-top:6px;border:1.8px solid var(--ink);border-radius:12px;overflow:hidden">
+              <div style="flex:1;padding:6px;text-align:center"><span class="mono">income</span></div>
+              <div style="flex:1;padding:6px;text-align:center;background:var(--accent-expense);color:#fffdf7"><span class="mono" style="color:#f1d7cc">expense</span></div>
+            </div>
+
+            <div style="text-align:center;padding:14px 0 8px">
+              <div class="mono">£</div>
+              <div class="num-xl c-exp" style="font-size:52px">42<span style="opacity:.35">.00</span></div>
+            </div>
+
+            <div class="row" style="gap:4px;flex-wrap:wrap;justify-content:center;margin-bottom:8px">
+              <span class="pill">Supplies</span>
+              <span class="pill filled">Fuel</span>
+              <span class="pill">Rent</span>
+              <span class="pill">+</span>
+            </div>
+
+            <div class="keypad">
+              <div class="k">1</div><div class="k">2</div><div class="k">3</div>
+              <div class="k">4</div><div class="k">5</div><div class="k">6</div>
+              <div class="k">7</div><div class="k">8</div><div class="k">9</div>
+              <div class="k">·</div><div class="k">0</div><div class="k">⌫</div>
+            </div>
+
+            <button style="width:100%;margin-top:10px;border:2px solid var(--ink);background:var(--accent-brand);color:#fffdf7;padding:11px;border-radius:14px;font-family:'Caveat';font-weight:700;font-size:22px">Save</button>
+          </div>
+        </div></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<!-- Tweaks panel -->
+<div class="tweaks on" id="tweaks">
+  <h4>Tweaks</h4>
+  <label><input type="checkbox" id="tw-mono"> black &amp; white only</label>
+  <label><input type="checkbox" id="tw-straight"> straighten (no wonk)</label>
+  <label><input type="checkbox" id="tw-wide"> fit 2-up layout</label>
+  <span class="mono">wireframe sketch · v1</span>
+</div>
+
+<script>
+/*EDITMODE-BEGIN*/
+const TWEAK_DEFAULTS = {
+  "mono": false,
+  "straight": false,
+  "wide": false
+};
+/*EDITMODE-END*/
+
+// Tab filtering
+const tabs = document.querySelectorAll('#tabs .tab');
+const sections = document.querySelectorAll('section.screen-block');
+tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  const v = t.dataset.tab;
+  sections.forEach(s => {
+    s.style.display = (v === 'all' || s.dataset.section === v) ? '' : 'none';
+  });
+  window.scrollTo({top:0, behavior:'smooth'});
+}));
+
+// Tweaks — edit-mode protocol
+const panel = document.getElementById('tweaks');
+const twMono = document.getElementById('tw-mono');
+const twStraight = document.getElementById('tw-straight');
+const twWide = document.getElementById('tw-wide');
+
+function applyTweaks(vals){
+  document.body.classList.toggle('mode-mono', !!vals.mono);
+  document.body.classList.toggle('mode-straight', !!vals.straight);
+  if (vals.wide) {
+    document.querySelectorAll('.variants').forEach(v => v.style.gridTemplateColumns = 'repeat(2, minmax(340px, 1fr))');
+  } else {
+    document.querySelectorAll('.variants').forEach(v => v.style.gridTemplateColumns = '');
+  }
+  twMono.checked = !!vals.mono;
+  twStraight.checked = !!vals.straight;
+  twWide.checked = !!vals.wide;
+}
+applyTweaks(TWEAK_DEFAULTS);
+
+function emit(key, val){
+  window.parent.postMessage({type:'__edit_mode_set_keys', edits:{[key]: val}}, '*');
+}
+twMono.addEventListener('change', e => { applyTweaks({...TWEAK_DEFAULTS, mono:e.target.checked, straight:twStraight.checked, wide:twWide.checked}); emit('mono', e.target.checked); });
+twStraight.addEventListener('change', e => { applyTweaks({...TWEAK_DEFAULTS, mono:twMono.checked, straight:e.target.checked, wide:twWide.checked}); emit('straight', e.target.checked); });
+twWide.addEventListener('change', e => { applyTweaks({...TWEAK_DEFAULTS, mono:twMono.checked, straight:twStraight.checked, wide:e.target.checked}); emit('wide', e.target.checked); });
+
+window.addEventListener('message', e => {
+  if (e.data?.type === '__activate_edit_mode') panel.classList.add('on');
+  if (e.data?.type === '__deactivate_edit_mode') panel.classList.remove('on');
+});
+window.parent.postMessage({type:'__edit_mode_available'}, '*');
+</script>
+
+
+
+</body></html>
