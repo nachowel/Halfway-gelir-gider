@@ -97,9 +97,14 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
           final EntryKind entryKind = kind == 'income'
               ? EntryKind.income
               : EntryKind.expense;
+          final String? transactionId =
+              state.uri.queryParameters['transactionId'];
           return NoTransitionPage<void>(
             key: state.pageKey,
-            child: EntryScreen(kind: entryKind),
+            child: EntryScreen(
+              kind: entryKind,
+              transactionId: transactionId,
+            ),
           );
         },
       ),

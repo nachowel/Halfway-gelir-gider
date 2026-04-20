@@ -5,6 +5,11 @@ import '../router/route_access.dart';
 import '../../core/auth/session_controller.dart';
 import '../../data/app_models.dart';
 import '../../data/app_repository.dart';
+import '../../data/local/app_database.dart';
+import '../../data/local/outbox_repository.dart';
+import '../../data/sync/conflict_policy.dart';
+import '../../data/sync/sync_engine.dart';
+import '../../data/sync/sync_service.dart';
 
 final refreshKeyProvider = StateProvider<int>((ref) => 0);
 
@@ -14,6 +19,43 @@ final supabaseClientProvider = Provider<SupabaseClient>(
 
 final giderRepositoryProvider = Provider<GiderRepository>(
   (ref) => GiderRepository(ref.watch(supabaseClientProvider)),
+);
+
+final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  final AppDatabase database = AppDatabase();
+  ref.onDispose(database.close);
+  return database;
+});
+
+final outboxRepositoryProvider = Provider<OutboxRepository>(
+  (ref) => OutboxRepository(ref.watch(appDatabaseProvider)),
+);
+
+final syncConflictPolicyProvider = Provider<SyncConflictPolicy>(
+  (ref) => const SyncConflictPolicy(),
+);
+
+final connectivityProbeProvider = Provider<ConnectivityProbe>(
+  (ref) => ConnectivityPlusProbe(),
+);
+
+final transactionSyncGatewayProvider = Provider<TransactionSyncGateway>(
+  (ref) => SupabaseTransactionSyncGateway(ref.watch(supabaseClientProvider)),
+);
+
+final syncEngineProvider = Provider<SyncEngine>(
+  (ref) => SyncEngine(
+    outboxRepository: ref.watch(outboxRepositoryProvider),
+    transactionGateway: ref.watch(transactionSyncGatewayProvider),
+    conflictPolicy: ref.watch(syncConflictPolicyProvider),
+  ),
+);
+
+final syncServiceProvider = Provider<SyncService>(
+  (ref) => SyncService(
+    engine: ref.watch(syncEngineProvider),
+    connectivityProbe: ref.watch(connectivityProbeProvider),
+  ),
 );
 
 final sessionControllerProvider = Provider<SessionController>(

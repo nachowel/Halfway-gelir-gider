@@ -1,11 +1,16 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/domain/types.dart' show DomainValidationException;
+import '../../../data/app_models.dart';
 import '../../../shared/hi_fi/hi_fi_attachment_tile.dart';
 import '../../../shared/hi_fi/hi_fi_filter_chip.dart';
 import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
@@ -16,30 +21,31 @@ import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_date_field.dart';
 import '../../../shared/widgets/app_form_section_card.dart';
-import '../../categories/presentation/category_catalog.dart';
 
 enum EntryKind { expense, income }
 
-class EntryScreen extends StatefulWidget {
-  const EntryScreen({required this.kind, super.key});
+class EntryScreen extends ConsumerStatefulWidget {
+  const EntryScreen({required this.kind, this.transactionId, super.key});
 
   final EntryKind kind;
+  final String? transactionId;
 
   @override
-  State<EntryScreen> createState() => _EntryScreenState();
+  ConsumerState<EntryScreen> createState() => _EntryScreenState();
 }
 
-class _EntryScreenState extends State<EntryScreen> {
+class _EntryScreenState extends ConsumerState<EntryScreen> {
   late final TextEditingController _amountController;
   late final TextEditingController _vendorController;
   late final TextEditingController _noteController;
 
   late DateTime _occurredOn;
-  String? _selectedCategory;
+  String? _selectedCategoryId;
   String? _selectedPaymentMethod;
   String? _selectedSourcePlatform;
   String? _attachmentLabel;
   bool _didAttemptSubmit = false;
+  bool _saving = false;
 
   String? _amountError;
   String? _categoryError;
@@ -59,18 +65,40 @@ class _EntryScreenState extends State<EntryScreen> {
     'Other',
   ];
 
+  static const Set<String> _settlementPlatforms = <String>{'Uber', 'Just Eat'};
+
   bool get _isExpense => widget.kind == EntryKind.expense;
 
-  List<CategoryPresentationData> get _categories =>
-      _isExpense ? expenseCategoryCatalog : incomeCategoryCatalog;
+  bool get _isEditing => widget.transactionId != null;
 
-  String get _screenTitle => _isExpense ? 'Gider ekle' : 'Gelir ekle';
+  bool get _isSettlementSelected =>
+      _selectedSourcePlatform != null &&
+      _settlementPlatforms.contains(_selectedSourcePlatform);
+
+  AsyncValue<List<CategoryData>> get _categoriesAsync => _isExpense
+      ? ref.watch(expenseCategoriesProvider)
+      : ref.watch(incomeCategoriesProvider);
+
+  String get _screenTitle {
+    if (_isEditing) {
+      return _isExpense ? 'Gideri duzenle' : 'Geliri duzenle';
+    }
+    return _isExpense ? 'Gider ekle' : 'Gelir ekle';
+  }
 
   String get _pillLabel => _isExpense ? 'Gider' : 'Gelir';
 
-  String get _saveLabel => _isExpense ? 'Gideri kaydet' : 'Geliri kaydet';
+  String get _saveLabel {
+    if (_isEditing) {
+      return 'Degisiklikleri kaydet';
+    }
+    return _isExpense ? 'Gideri kaydet' : 'Geliri kaydet';
+  }
 
-  String get _dateSubtitle => '${_formatHeaderDate(_occurredOn)} · yeni kayit';
+  String get _dateSubtitle {
+    final String suffix = _isEditing ? 'duzenleniyor' : 'yeni kayit';
+    return '${_formatHeaderDate(_occurredOn)} - $suffix';
+  }
 
   bool get _isToday {
     final DateTime now = DateTime.now();
@@ -138,9 +166,12 @@ class _EntryScreenState extends State<EntryScreen> {
     setState(() => _occurredOn = picked);
   }
 
-  Future<void> _pickCategory() async {
+  Future<void> _pickCategory(List<CategoryData> categories) async {
     FocusScope.of(context).unfocus();
-    final String? selected = await showModalBottomSheet<String>(
+    if (categories.isEmpty) {
+      return;
+    }
+    final CategoryData? selected = await showModalBottomSheet<CategoryData>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -178,12 +209,12 @@ class _EntryScreenState extends State<EntryScreen> {
                       child: Text('CATEGORY', style: AppTypography.eye),
                     ),
                   ),
-                  for (final CategoryPresentationData category in _categories)
+                  for (final CategoryData category in categories)
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () =>
-                            Navigator.of(sheetContext).pop(category.title),
+                            Navigator.of(sheetContext).pop(category),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
                           child: Row(
@@ -196,13 +227,13 @@ class _EntryScreenState extends State<EntryScreen> {
                               const SizedBox(width: AppSpacing.sm),
                               Expanded(
                                 child: Text(
-                                  category.title,
+                                  category.name,
                                   style: AppTypography.body.copyWith(
                                     fontSize: 14.5,
                                   ),
                                 ),
                               ),
-                              if (_selectedCategory == category.title)
+                              if (_selectedCategoryId == category.id)
                                 const Icon(
                                   Icons.check_rounded,
                                   size: 18,
@@ -231,7 +262,7 @@ class _EntryScreenState extends State<EntryScreen> {
       return;
     }
     setState(() {
-      _selectedCategory = selected;
+      _selectedCategoryId = selected.id;
       _categoryError = null;
     });
   }
@@ -255,6 +286,9 @@ class _EntryScreenState extends State<EntryScreen> {
   }
 
   Future<void> _submit() async {
+    if (_saving) {
+      return;
+    }
     FocusScope.of(context).unfocus();
     final double? amount = _parseAmount();
     setState(() {
@@ -262,7 +296,9 @@ class _EntryScreenState extends State<EntryScreen> {
       _amountError = amount == null || amount <= 0
           ? 'Enter an amount greater than £0.00.'
           : null;
-      _categoryError = _selectedCategory == null ? 'Choose a category.' : null;
+      _categoryError = _selectedCategoryId == null
+          ? 'Choose a category.'
+          : null;
       _paymentError = _selectedPaymentMethod == null
           ? 'Choose a payment method.'
           : null;
@@ -274,15 +310,105 @@ class _EntryScreenState extends State<EntryScreen> {
       return;
     }
 
+    final EntryDraft draft = EntryDraft(
+      type: _isExpense ? TransactionType.expense : TransactionType.income,
+      occurredOn: _occurredOn,
+      amountMinor: (amount! * 100).round(),
+      categoryId: _selectedCategoryId!,
+      paymentMethod: _paymentMethodFromLabel(_selectedPaymentMethod!),
+      sourcePlatform: _isExpense
+          ? null
+          : _sourcePlatformFromLabel(_selectedSourcePlatform),
+      vendor: _isExpense ? _trimToNull(_vendorController.text) : null,
+      note: _trimToNull(_noteController.text),
+    );
+
+    setState(() => _saving = true);
+    try {
+      if (_isEditing) {
+        await ref
+            .read(giderRepositoryProvider)
+            .updateTransaction(id: widget.transactionId!, draft: draft);
+      } else {
+        await ref.read(giderRepositoryProvider).createTransaction(draft);
+      }
+      ref.read(refreshKeyProvider.notifier).state++;
+      if (!mounted) {
+        return;
+      }
+      context.pop();
+    } on DomainValidationException catch (error) {
+      _showErrorSnack(error.message);
+    } on AuthException catch (error) {
+      _showErrorSnack(error.message);
+    } catch (error) {
+      _showErrorSnack('Could not save entry: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  void _showErrorSnack(String message) {
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: _isExpense ? AppColors.brand : AppColors.income,
-        content: Text(
-          '${_isExpense ? 'Expense' : 'Income'} saved for £${amount!.toStringAsFixed(2)}',
-        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.expense,
+        content: Text(message),
       ),
     );
-    context.pop();
+  }
+
+  void _handleSourcePlatformSelected(String value) {
+    setState(() {
+      _selectedSourcePlatform = value;
+      if (_settlementPlatforms.contains(value)) {
+        _occurredOn = _sundayOf(_occurredOn);
+      }
+    });
+  }
+
+  DateTime _sundayOf(DateTime date) {
+    final DateTime normalized = DateTime(date.year, date.month, date.day);
+    final int daysUntilSunday = (DateTime.sunday - normalized.weekday) % 7;
+    return normalized.add(Duration(days: daysUntilSunday));
+  }
+
+  String? _trimToNull(String value) {
+    final String trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  PaymentMethodType _paymentMethodFromLabel(String label) {
+    switch (label) {
+      case 'Cash':
+        return PaymentMethodType.cash;
+      case 'Card':
+        return PaymentMethodType.card;
+      case 'Bank transfer':
+        return PaymentMethodType.bankTransfer;
+      default:
+        return PaymentMethodType.other;
+    }
+  }
+
+  SourcePlatformType? _sourcePlatformFromLabel(String? label) {
+    switch (label) {
+      case 'Direct':
+        return SourcePlatformType.direct;
+      case 'Uber':
+        return SourcePlatformType.uber;
+      case 'Just Eat':
+        return SourcePlatformType.justEat;
+      case 'Other':
+        return SourcePlatformType.other;
+      default:
+        return null;
+    }
   }
 
   void _handleAmountChanged(String _) {
@@ -301,6 +427,22 @@ class _EntryScreenState extends State<EntryScreen> {
   Widget build(BuildContext context) {
     final MediaQueryData mq = MediaQuery.of(context);
     final double bottomInset = mq.viewInsets.bottom;
+    final AsyncValue<List<CategoryData>> categoriesAsync = _categoriesAsync;
+    final List<CategoryData> categories =
+        categoriesAsync.asData?.value ?? const <CategoryData>[];
+    final bool categoriesLoading = categoriesAsync.isLoading;
+    final String? categoriesErrorMessage = categoriesAsync.hasError
+        ? categoriesAsync.error.toString()
+        : null;
+    String? selectedCategoryName;
+    if (_selectedCategoryId != null) {
+      for (final CategoryData item in categories) {
+        if (item.id == _selectedCategoryId) {
+          selectedCategoryName = item.name;
+          break;
+        }
+      }
+    }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -343,8 +485,10 @@ class _EntryScreenState extends State<EntryScreen> {
                           const SizedBox(height: AppSpacing.sm),
                           if (_isExpense)
                             _ExpenseFields(
-                              categories: _categories,
-                              selectedCategory: _selectedCategory,
+                              categories: categories,
+                              categoriesLoading: categoriesLoading,
+                              categoriesErrorMessage: categoriesErrorMessage,
+                              selectedCategoryId: _selectedCategoryId,
                               selectedPaymentMethod: _selectedPaymentMethod,
                               paymentMethods: _paymentMethods,
                               categoryError: _categoryError,
@@ -354,9 +498,9 @@ class _EntryScreenState extends State<EntryScreen> {
                               occurredOnLabel: _formatHeaderDate(_occurredOn),
                               showTodayPill: _isToday,
                               attachmentLabel: _attachmentLabel,
-                              onCategorySelected: (String value) {
+                              onCategorySelected: (CategoryData category) {
                                 setState(() {
-                                  _selectedCategory = value;
+                                  _selectedCategoryId = category.id;
                                   _categoryError = null;
                                 });
                               },
@@ -375,23 +519,25 @@ class _EntryScreenState extends State<EntryScreen> {
                               sourcePlatforms: _sourcePlatforms,
                               selectedPaymentMethod: _selectedPaymentMethod,
                               paymentMethods: _paymentMethods,
-                              selectedCategory: _selectedCategory,
+                              selectedCategoryName: selectedCategoryName,
                               categoryError: _categoryError,
                               paymentError: _paymentError,
                               noteController: _noteController,
                               occurredOnLabel: _formatHeaderDate(_occurredOn),
                               showTodayPill: _isToday,
                               attachmentLabel: _attachmentLabel,
-                              onSourcePlatformSelected: (String value) {
-                                setState(() => _selectedSourcePlatform = value);
-                              },
+                              isSettlementSelected: _isSettlementSelected,
+                              categoriesLoading: categoriesLoading,
+                              categoriesErrorMessage: categoriesErrorMessage,
+                              onSourcePlatformSelected:
+                                  _handleSourcePlatformSelected,
                               onPaymentSelected: (String value) {
                                 setState(() {
                                   _selectedPaymentMethod = value;
                                   _paymentError = null;
                                 });
                               },
-                              onCategoryTap: _pickCategory,
+                              onCategoryTap: () => _pickCategory(categories),
                               onDateTap: _pickDate,
                               onAttachmentTap: _toggleAttachment,
                             ),
@@ -549,7 +695,9 @@ class _EntryHeader extends StatelessWidget {
 class _ExpenseFields extends StatelessWidget {
   const _ExpenseFields({
     required this.categories,
-    required this.selectedCategory,
+    required this.categoriesLoading,
+    required this.categoriesErrorMessage,
+    required this.selectedCategoryId,
     required this.selectedPaymentMethod,
     required this.paymentMethods,
     required this.categoryError,
@@ -565,8 +713,10 @@ class _ExpenseFields extends StatelessWidget {
     required this.onAttachmentTap,
   });
 
-  final List<CategoryPresentationData> categories;
-  final String? selectedCategory;
+  final List<CategoryData> categories;
+  final bool categoriesLoading;
+  final String? categoriesErrorMessage;
+  final String? selectedCategoryId;
   final String? selectedPaymentMethod;
   final List<String> paymentMethods;
   final String? categoryError;
@@ -576,22 +726,43 @@ class _ExpenseFields extends StatelessWidget {
   final String occurredOnLabel;
   final bool showTodayPill;
   final String? attachmentLabel;
-  final ValueChanged<String> onCategorySelected;
+  final ValueChanged<CategoryData> onCategorySelected;
   final ValueChanged<String> onPaymentSelected;
   final VoidCallback onDateTap;
   final VoidCallback onAttachmentTap;
 
   @override
   Widget build(BuildContext context) {
+    final String? sectionHelper;
+    if (categoriesLoading && categories.isEmpty) {
+      sectionHelper = 'Loading categories...';
+    } else if (categoriesErrorMessage != null) {
+      sectionHelper = 'Could not load categories. Pull to retry.';
+    } else if (categories.isEmpty) {
+      sectionHelper = 'No categories yet. Create one in Settings.';
+    } else {
+      sectionHelper = null;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        _ChipSection(
+        AppFormSectionCard(
           label: 'Category',
+          helper: sectionHelper,
           errorText: categoryError,
-          values: categories.map((CategoryPresentationData item) => item.title).toList(),
-          selectedValue: selectedCategory,
-          onSelected: onCategorySelected,
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: <Widget>[
+              for (final CategoryData category in categories)
+                HiFiFilterChip(
+                  label: category.name,
+                  selected: selectedCategoryId == category.id,
+                  onTap: () => onCategorySelected(category),
+                ),
+            ],
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
         _ChipSection(
@@ -649,13 +820,16 @@ class _IncomeFields extends StatelessWidget {
     required this.sourcePlatforms,
     required this.selectedPaymentMethod,
     required this.paymentMethods,
-    required this.selectedCategory,
+    required this.selectedCategoryName,
     required this.categoryError,
     required this.paymentError,
     required this.noteController,
     required this.occurredOnLabel,
     required this.showTodayPill,
     required this.attachmentLabel,
+    required this.isSettlementSelected,
+    required this.categoriesLoading,
+    required this.categoriesErrorMessage,
     required this.onSourcePlatformSelected,
     required this.onPaymentSelected,
     required this.onCategoryTap,
@@ -667,13 +841,16 @@ class _IncomeFields extends StatelessWidget {
   final List<String> sourcePlatforms;
   final String? selectedPaymentMethod;
   final List<String> paymentMethods;
-  final String? selectedCategory;
+  final String? selectedCategoryName;
   final String? categoryError;
   final String? paymentError;
   final TextEditingController noteController;
   final String occurredOnLabel;
   final bool showTodayPill;
   final String? attachmentLabel;
+  final bool isSettlementSelected;
+  final bool categoriesLoading;
+  final String? categoriesErrorMessage;
   final ValueChanged<String> onSourcePlatformSelected;
   final ValueChanged<String> onPaymentSelected;
   final VoidCallback onCategoryTap;
@@ -682,12 +859,24 @@ class _IncomeFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String sourceHelper = isSettlementSelected
+        ? 'Weekly settlement · enter the Monday-Sunday total for this week'
+        : 'Optional · direct sale or delivery settlement';
+    final String? categoryHint;
+    if (categoriesLoading && selectedCategoryName == null) {
+      categoryHint = 'Loading categories...';
+    } else if (categoriesErrorMessage != null) {
+      categoryHint = 'Could not load categories. Pull to retry.';
+    } else {
+      categoryHint = null;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _ChipSection(
           label: 'Source platform',
-          helper: 'Optional · direct sale or delivery settlement',
+          helper: sourceHelper,
           values: sourcePlatforms,
           selectedValue: selectedSourcePlatform,
           chipTone: HiFiFilterChipTone.brand,
@@ -716,8 +905,8 @@ class _IncomeFields extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      selectedCategory ?? 'Choose category',
-                      style: (selectedCategory == null
+                      selectedCategoryName ?? 'Choose category',
+                      style: (selectedCategoryName == null
                               ? AppTypography.bodySoft
                               : AppTypography.body)
                           .copyWith(fontSize: 14.5),
@@ -730,6 +919,13 @@ class _IncomeFields extends StatelessWidget {
                   ),
                 ],
               ),
+              if (categoryHint != null) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  categoryHint,
+                  style: AppTypography.meta.copyWith(color: AppColors.inkFade),
+                ),
+              ],
             ],
           ),
         ),

@@ -1,50 +1,63 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/domain/types.dart' show DomainValidationException;
+import '../../../data/app_models.dart';
 import '../../../shared/hi_fi/hi_fi_bottom_sheet.dart';
 import '../../../shared/hi_fi/hi_fi_button.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_category_row.dart';
 import '../../../shared/hi_fi/hi_fi_filter_chip.dart';
-import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
 import '../../../shared/hi_fi/hi_fi_input_field.dart';
 import 'category_catalog.dart';
 
-class CategoriesScreen extends StatefulWidget {
+class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
   @override
-  State<CategoriesScreen> createState() => _CategoriesScreenState();
+  ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
 }
 
-class _CategoriesScreenState extends State<CategoriesScreen> {
+class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
+  static final NumberFormat _currencyFormatter = NumberFormat.currency(
+    locale: 'en_GB',
+    symbol: '£',
+    decimalDigits: 0,
+  );
+
   CategoryKind _selectedKind = CategoryKind.expense;
-  late List<CategoryPresentationData> _expenseCategories;
-  late List<CategoryPresentationData> _incomeCategories;
 
-  @override
-  void initState() {
-    super.initState();
-    _expenseCategories = List<CategoryPresentationData>.of(
-      expenseCategoryCatalog,
-    );
-    _incomeCategories = List<CategoryPresentationData>.of(
-      incomeCategoryCatalog,
-    );
-  }
+  AsyncValue<List<CategoryData>> get _expenseState =>
+      ref.watch(expenseCategoriesProvider);
 
-  List<CategoryPresentationData> get _activeCategories =>
-      _selectedKind == CategoryKind.expense
-      ? _expenseCategories
-      : _incomeCategories;
+  AsyncValue<List<CategoryData>> get _incomeState =>
+      ref.watch(incomeCategoriesProvider);
 
-  Future<void> _openEditor({CategoryPresentationData? category}) async {
+  AsyncValue<List<CategoryData>> get _activeState =>
+      _selectedKind == CategoryKind.expense ? _expenseState : _incomeState;
+
+  CategoryType get _activeType => _selectedKind == CategoryKind.expense
+      ? CategoryType.expense
+      : CategoryType.income;
+
+  int get _expenseCount => _expenseState.asData?.value.length ?? 0;
+
+  int get _incomeCount => _incomeState.asData?.value.length ?? 0;
+
+  Future<void> _openEditor({CategoryData? category}) async {
     final TextEditingController controller = TextEditingController(
-      text: category?.title ?? '',
+      text: category?.name ?? '',
     );
     String? errorText;
+    bool saving = false;
+    bool archiving = false;
+    final CategoryType categoryType = category?.type ?? _activeType;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -53,6 +66,70 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       builder: (BuildContext sheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setSheetState) {
+            final NavigatorState navigator = Navigator.of(sheetContext);
+
+            Future<void> save() async {
+              final String name = controller.text.trim();
+              if (name.isEmpty) {
+                setSheetState(
+                  () => errorText = 'Category name cannot be empty.',
+                );
+                return;
+              }
+
+              setSheetState(() => saving = true);
+              try {
+                await ref
+                    .read(giderRepositoryProvider)
+                    .saveCategory(
+                      id: category?.id,
+                      type: categoryType,
+                      name: name,
+                    );
+                ref.read(refreshKeyProvider.notifier).state++;
+                if (!mounted) {
+                  return;
+                }
+                navigator.pop();
+              } on DomainValidationException catch (error) {
+                setSheetState(() => errorText = error.message);
+              } on AuthException catch (error) {
+                _showErrorSnack(error.message);
+              } finally {
+                if (mounted) {
+                  setSheetState(() => saving = false);
+                }
+              }
+            }
+
+            Future<void> archive() async {
+              if (category == null) {
+                return;
+              }
+
+              setSheetState(() => archiving = true);
+              try {
+                await ref
+                    .read(giderRepositoryProvider)
+                    .archiveCategory(id: category.id);
+                ref.read(refreshKeyProvider.notifier).state++;
+                if (!mounted) {
+                  return;
+                }
+                navigator.pop();
+              } on DomainValidationException catch (error) {
+                _showErrorSnack(error.message);
+              } on AuthException catch (error) {
+                _showErrorSnack(error.message);
+              } finally {
+                if (mounted) {
+                  setSheetState(() => archiving = false);
+                }
+              }
+            }
+
+            final bool busy = saving || archiving;
+
             return HiFiBottomSheet(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -71,7 +148,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                           text: category == null ? 'Create ' : 'Rename ',
                         ),
                         TextSpan(
-                          text: _selectedKind.label.toLowerCase(),
+                          text: categoryType.label.toLowerCase(),
                           style: AppTypography.h2.copyWith(
                             color: AppColors.brand,
                             fontStyle: FontStyle.italic,
@@ -85,22 +162,35 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   HiFiInputField(
                     controller: controller,
                     label: 'Name',
-                    hint: _selectedKind == CategoryKind.expense
+                    hint: categoryType == CategoryType.expense
                         ? 'e.g. Packaging'
                         : 'e.g. Card Sales',
                     errorText: errorText,
-                    autofocus: true,
+                    autofocus: false,
+                    readOnly: busy,
                     onChanged: (_) {
                       if (errorText != null) {
                         setSheetState(() => errorText = null);
                       }
                     },
+                    onSubmitted: (_) => save(),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Usage and counts stay in place even when this screen has placeholder data.',
+                    category == null
+                        ? 'New categories appear immediately in the management list.'
+                        : '${category.entryCount} entries · ${_formatCurrency(category.monthlyTotalMinor)} this month',
                     style: AppTypography.bodySoft.copyWith(height: 1.45),
                   ),
+                  if (category != null) ...<Widget>[
+                    const SizedBox(height: AppSpacing.md),
+                    HiFiButton(
+                      label: 'Archive category',
+                      variant: HiFiButtonVariant.expense,
+                      loading: archiving,
+                      onPressed: busy ? null : archive,
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   Row(
                     children: <Widget>[
@@ -108,7 +198,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                         child: HiFiButton(
                           label: 'Cancel',
                           variant: HiFiButtonVariant.ghost,
-                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          onPressed: busy
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
@@ -118,37 +210,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                           label: category == null
                               ? 'Save category'
                               : 'Save changes',
-                          onPressed: () {
-                            final String name = controller.text.trim();
-                            if (name.isEmpty) {
-                              setSheetState(
-                                () => errorText =
-                                    'Category name cannot be empty.',
-                              );
-                              return;
-                            }
-
-                            setState(() {
-                              if (_selectedKind == CategoryKind.expense) {
-                                _expenseCategories = _upsertCategory(
-                                  _expenseCategories,
-                                  category,
-                                  name,
-                                  HiFiIconTileTone.expense,
-                                  Icons.sell_outlined,
-                                );
-                              } else {
-                                _incomeCategories = _upsertCategory(
-                                  _incomeCategories,
-                                  category,
-                                  name,
-                                  HiFiIconTileTone.income,
-                                  Icons.payments_outlined,
-                                );
-                              }
-                            });
-                            Navigator.of(sheetContext).pop();
-                          },
+                          loading: saving,
+                          onPressed: busy ? null : save,
                         ),
                       ),
                     ],
@@ -164,32 +227,92 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     controller.dispose();
   }
 
-  List<CategoryPresentationData> _upsertCategory(
-    List<CategoryPresentationData> current,
-    CategoryPresentationData? category,
-    String name,
-    HiFiIconTileTone tone,
-    IconData icon,
-  ) {
-    if (category == null) {
-      return <CategoryPresentationData>[
-        ...current,
-        CategoryPresentationData(
-          title: name,
-          icon: icon,
-          tone: tone,
-          entryCount: 0,
-          monthlyTotalLabel: '£0',
-        ),
-      ];
+  void _showErrorSnack(String message) {
+    if (!mounted) {
+      return;
     }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.expense,
+        content: Text(message),
+      ),
+    );
+  }
 
-    return current
-        .map(
-          (CategoryPresentationData item) =>
-              item == category ? item.copyWith(title: name) : item,
-        )
-        .toList();
+  void _retryActiveList() {
+    if (_selectedKind == CategoryKind.expense) {
+      ref.invalidate(expenseCategoriesProvider);
+    } else {
+      ref.invalidate(incomeCategoriesProvider);
+    }
+  }
+
+  String _formatCurrency(int amountMinor) {
+    return _currencyFormatter.format(amountMinor / 100);
+  }
+
+  Widget _buildActiveBody() {
+    return _activeState.when(
+      data: (List<CategoryData> categories) {
+        if (categories.isEmpty) {
+          return HiFiCard.flush(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('No categories yet', style: AppTypography.h2),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Create your first ${_activeType.label.toLowerCase()} category for this business.',
+                    style: AppTypography.bodySoft.copyWith(height: 1.45),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  HiFiButton(label: 'Create category', onPressed: _openEditor),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return HiFiCard.flush(
+          child: Column(
+            children: <Widget>[
+              for (int i = 0; i < categories.length; i++)
+                HiFiCategoryRow(
+                  icon: categories[i].icon,
+                  tone: categories[i].tone,
+                  title: categories[i].name,
+                  meta:
+                      '${categories[i].entryCount} entries · ${_formatCurrency(categories[i].monthlyTotalMinor)} this month',
+                  showDivider: i != categories.length - 1,
+                  onTap: () => _openEditor(category: categories[i]),
+                ),
+            ],
+          ),
+        );
+      },
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (Object error, StackTrace stackTrace) => HiFiCard.flush(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('We could not load categories.', style: AppTypography.h2),
+              const SizedBox(height: AppSpacing.xs),
+              Text(error.toString(), style: AppTypography.bodySoft),
+              const SizedBox(height: AppSpacing.md),
+              HiFiButton(label: 'Try again', onPressed: _retryActiveList),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -269,8 +392,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           pinned: true,
           delegate: _CategorySwitchHeaderDelegate(
             selectedKind: _selectedKind,
-            expenseCount: _expenseCategories.length,
-            incomeCount: _incomeCategories.length,
+            expenseCount: _expenseCount,
+            incomeCount: _incomeCount,
             onSelected: (CategoryKind value) {
               setState(() => _selectedKind = value);
             },
@@ -283,23 +406,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             AppSpacing.screenSide,
             120,
           ),
-          sliver: SliverToBoxAdapter(
-            child: HiFiCard.flush(
-              child: Column(
-                children: <Widget>[
-                  for (int i = 0; i < _activeCategories.length; i++)
-                    HiFiCategoryRow(
-                      icon: _activeCategories[i].icon,
-                      tone: _activeCategories[i].tone,
-                      title: _activeCategories[i].title,
-                      meta: _activeCategories[i].metaLabel,
-                      showDivider: i != _activeCategories.length - 1,
-                      onTap: () => _openEditor(category: _activeCategories[i]),
-                    ),
-                ],
-              ),
-            ),
-          ),
+          sliver: SliverToBoxAdapter(child: _buildActiveBody()),
         ),
       ],
     );
@@ -367,40 +474,42 @@ class _CategorySwitchHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: AppGradients.screenCream,
-        boxShadow: overlapsContent
-            ? <BoxShadow>[
-                BoxShadow(
-                  color: AppColors.bg.withValues(alpha: 0.92),
-                  blurRadius: 18,
-                  spreadRadius: 6,
-                ),
-              ]
-            : const <BoxShadow>[],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          6,
-          AppSpacing.screenSide,
-          8,
+    return SizedBox.expand(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: AppGradients.screenCream,
+          boxShadow: overlapsContent
+              ? <BoxShadow>[
+                  BoxShadow(
+                    color: AppColors.bg.withValues(alpha: 0.92),
+                    blurRadius: 18,
+                    spreadRadius: 6,
+                  ),
+                ]
+              : const <BoxShadow>[],
         ),
-        child: Row(
-          children: <Widget>[
-            HiFiFilterChip(
-              label: 'Expense · $expenseCount',
-              selected: selectedKind == CategoryKind.expense,
-              onTap: () => onSelected(CategoryKind.expense),
-            ),
-            const SizedBox(width: 6),
-            HiFiFilterChip(
-              label: 'Income · $incomeCount',
-              selected: selectedKind == CategoryKind.income,
-              onTap: () => onSelected(CategoryKind.income),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            6,
+            AppSpacing.screenSide,
+            8,
+          ),
+          child: Row(
+            children: <Widget>[
+              HiFiFilterChip(
+                label: 'Expense · $expenseCount',
+                selected: selectedKind == CategoryKind.expense,
+                onTap: () => onSelected(CategoryKind.expense),
+              ),
+              const SizedBox(width: 6),
+              HiFiFilterChip(
+                label: 'Income · $incomeCount',
+                selected: selectedKind == CategoryKind.income,
+                onTap: () => onSelected(CategoryKind.income),
+              ),
+            ],
+          ),
         ),
       ),
     );

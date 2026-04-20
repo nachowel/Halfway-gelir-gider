@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/data/app_repository.dart';
-import 'package:gider/features/entry/presentation/entry_screen.dart';
+import 'package:gider/features/categories/presentation/categories_screen.dart';
 import 'package:gider/shared/hi_fi/hi_fi_icon_tile.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -17,7 +16,7 @@ void main() {
 
   setUpAll(AppTheme.configure);
 
-  Widget buildTestApp(Widget child) {
+  Widget buildTestApp() {
     return ProviderScope(
       overrides: <Override>[
         giderRepositoryProvider.overrideWithValue(_MockGiderRepository()),
@@ -31,8 +30,8 @@ void main() {
               tone: HiFiIconTileTone.expense,
               sortOrder: 0,
               isArchived: false,
-              entryCount: 0,
-              monthlyTotalMinor: 0,
+              entryCount: 4,
+              monthlyTotalMinor: 340000,
             ),
           ],
         ),
@@ -46,51 +45,35 @@ void main() {
               tone: HiFiIconTileTone.income,
               sortOrder: 0,
               isArchived: false,
-              entryCount: 0,
-              monthlyTotalMinor: 0,
+              entryCount: 8,
+              monthlyTotalMinor: 248000,
             ),
           ],
         ),
       ],
-      child: MaterialApp(theme: AppTheme.light(), home: Scaffold(body: child)),
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        home: const Scaffold(body: CategoriesScreen()),
+      ),
     );
   }
 
-  testWidgets('expense entry renders variant A structure', (
+  testWidgets('categories screen renders provider data and switches tabs', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(430, 1400));
+    await tester.binding.setSurfaceSize(const Size(430, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await tester.pumpWidget(
-      buildTestApp(const EntryScreen(kind: EntryKind.expense)),
-    );
+    await tester.pumpWidget(buildTestApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Category'), findsOneWidget);
-    expect(find.text('Payment method'), findsOneWidget);
-    expect(find.text('Vendor'), findsOneWidget);
-    expect(find.text('Occurred on'), findsOneWidget);
-    expect(find.text('Attachment'), findsOneWidget);
-    expect(find.text('Gideri kaydet'), findsOneWidget);
-  });
+    expect(find.text('Rent'), findsOneWidget);
+    expect(find.text('Card Sales'), findsNothing);
 
-  testWidgets('income entry renders variant C structure', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(430, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(
-      buildTestApp(const EntryScreen(kind: EntryKind.income)),
-    );
+    await tester.tap(find.text('Income · 1'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Source platform'), findsOneWidget);
-    expect(find.text('Payment method'), findsOneWidget);
-    expect(find.text('Category'), findsOneWidget);
-    expect(find.text('Occurred on'), findsOneWidget);
-    expect(find.text('Attachment'), findsOneWidget);
-    expect(find.text('Geliri kaydet'), findsOneWidget);
+    expect(find.text('Card Sales'), findsOneWidget);
+    expect(find.text('Rent'), findsNothing);
   });
 }

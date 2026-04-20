@@ -17,12 +17,7 @@ class GiderApp extends ConsumerWidget {
     );
 
     if (authRoutingStatus == AppAuthRoutingStatus.loading) {
-      return MaterialApp(
-        title: 'Gider',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        home: const _AuthBootstrapScreen(),
-      );
+      return _buildBootstrapApp(child: const _AuthBootstrapScreen());
     }
 
     if (authRoutingStatus == AppAuthRoutingStatus.authenticated) {
@@ -31,23 +26,15 @@ class GiderApp extends ConsumerWidget {
       );
 
       if (bootstrapStatus == BusinessSettingsBootstrapStatus.loading) {
-        return MaterialApp(
-          title: 'Gider',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(),
-          home: const _BootstrapProgressScreen(
-            message: 'Preparing your business setup…',
+        return _buildBootstrapApp(
+          child: const _BootstrapProgressScreen(
+            message: 'Preparing your business setup...',
           ),
         );
       }
 
       if (bootstrapStatus == BusinessSettingsBootstrapStatus.error) {
-        return MaterialApp(
-          title: 'Gider',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.light(),
-          home: const _BootstrapFailureScreen(),
-        );
+        return _buildBootstrapApp(child: const _BootstrapFailureScreen());
       }
     }
 
@@ -58,6 +45,20 @@ class GiderApp extends ConsumerWidget {
       routerConfig: ref.watch(appRouterProvider),
     );
   }
+
+  MaterialApp _buildBootstrapApp({required Widget child}) {
+    return MaterialApp(
+      title: 'Gider',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      onGenerateRoute: (RouteSettings settings) {
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => child,
+        );
+      },
+    );
+  }
 }
 
 class _AuthBootstrapScreen extends StatelessWidget {
@@ -65,7 +66,7 @@ class _AuthBootstrapScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _BootstrapProgressScreen(message: 'Checking your session…');
+    return const _BootstrapProgressScreen(message: 'Checking your session...');
   }
 }
 

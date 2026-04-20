@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app_tokens.dart';
@@ -167,6 +168,6 @@ abstract final class AppTheme {
 
   /// Ensure Google Fonts uses bundled/cached versions predictably.
   static void configure() {
-    GoogleFonts.config.allowRuntimeFetching = false;
+    GoogleFonts.config.allowRuntimeFetching = kIsWeb;
   }
 }

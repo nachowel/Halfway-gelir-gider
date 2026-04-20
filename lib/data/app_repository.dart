@@ -97,7 +97,7 @@ class GiderRepository {
     required String password,
     String? businessName,
   }) async {
-    final AuthResponse response = await _client.auth.signUp(
+    await _client.auth.signUp(
       email: email,
       password: password,
       data: <String, dynamic>{
@@ -105,16 +105,6 @@ class GiderRepository {
           'full_name': businessName.trim(),
       },
     );
-
-    if (businessName != null &&
-        businessName.trim().isNotEmpty &&
-        response.user != null &&
-        response.session != null) {
-      await _client.from('business_settings').upsert(<String, dynamic>{
-        'user_id': response.user!.id,
-        'business_name': businessName.trim(),
-      });
-    }
   }
 
   Future<void> signOut() => _client.auth.signOut();
@@ -126,7 +116,7 @@ class GiderRepository {
         .select('email, full_name')
         .eq('id', user.id)
         .maybeSingle();
-    Map<String, dynamic>? settings = await _client
+    final Map<String, dynamic>? settings = await _client
         .from('business_settings')
         .select('business_name, timezone, currency, week_starts_on')
         .eq('user_id', user.id)
@@ -136,26 +126,8 @@ class GiderRepository {
     final String? profileBusinessName = _normalizeOptionalText(
       profile?['full_name'] as String?,
     );
-    final String? savedBusinessName = _normalizeOptionalText(
-      settings?['business_name'] as String?,
-    );
-
-    if (settings == null ||
-        (savedBusinessName == null && profileBusinessName != null)) {
-      await _client.from('business_settings').upsert(<String, dynamic>{
-        'user_id': user.id,
-        if (profileBusinessName != null) 'business_name': profileBusinessName,
-      });
-      settings = <String, dynamic>{
-        'business_name': profileBusinessName ?? savedBusinessName,
-        'timezone': settings?['timezone'] ?? 'Europe/London',
-        'currency': settings?['currency'] ?? 'GBP',
-        'week_starts_on': settings?['week_starts_on'] ?? 1,
-      };
-    }
-
     final String? resolvedBusinessName = _normalizeOptionalText(
-      settings['business_name'] as String?,
+      settings?['business_name'] as String?,
     );
     final bool isBootstrapComplete = resolvedBusinessName != null;
     final String businessName =
@@ -164,19 +136,30 @@ class GiderRepository {
     return BusinessSettingsData(
       email: email,
       businessName: businessName,
-      timezone: (settings['timezone'] as String?) ?? 'Europe/London',
-      currency: (settings['currency'] as String?) ?? 'GBP',
-      weekStartsOn: (settings['week_starts_on'] as int?) ?? 1,
+      timezone: (settings?['timezone'] as String?) ?? 'Europe/London',
+      currency: (settings?['currency'] as String?) ?? 'GBP',
+      weekStartsOn: (settings?['week_starts_on'] as int?) ?? 1,
       isBootstrapComplete: isBootstrapComplete,
     );
   }
 
   Future<void> updateBusinessName(String businessName) async {
     final User user = _user;
-    await _client.from('business_settings').upsert(<String, dynamic>{
-      'user_id': user.id,
-      'business_name': businessName.trim(),
-    });
+    final String trimmed = businessName.trim();
+    final List<dynamic> updated = await _client
+        .from('business_settings')
+        .update(<String, dynamic>{'business_name': trimmed})
+        .eq('user_id', user.id)
+        .select('user_id');
+
+    if (updated.isEmpty) {
+      await _client
+          .from('business_settings')
+          .upsert(<String, dynamic>{
+            'user_id': user.id,
+            'business_name': trimmed,
+          }, onConflict: 'user_id');
+    }
   }
 
   Future<void> ensureSeedCategories() async {
@@ -339,6 +322,15 @@ class GiderRepository {
     }
   }
 
+  Future<void> archiveCategory({required String id}) async {
+    final String categoryId = domain.requireTrimmedText(id, 'category_id');
+    await _client
+        .from('categories')
+        .update(<String, dynamic>{'is_archived': true})
+        .eq('id', categoryId)
+        .eq('user_id', _user.id);
+  }
+
   Future<List<TransactionData>> fetchTransactions({
     TransactionType? type,
     PaymentMethodType? paymentMethod,
@@ -405,6 +397,62 @@ class GiderRepository {
       'vendor': transaction.vendor,
       'attachment_path': transaction.attachmentPath,
     });
+  }
+
+  Future<void> updateTransaction({
+    required String id,
+    required EntryDraft draft,
+  }) async {
+    final String transactionId = domain.requireTrimmedText(
+      id,
+      'transaction_id',
+    );
+    final String categoryType = await _fetchCategoryTypeValue(draft.categoryId);
+    final domain_transaction.TransactionModel transaction =
+        domain_transaction.TransactionModel.fromPayload(
+          id: transactionId,
+          type: draft.type.dbValue,
+          occurredOn: draft.occurredOn,
+          amountMinor: draft.amountMinor,
+          currency: 'GBP',
+          categoryId: draft.categoryId,
+          categoryType: categoryType,
+          paymentMethod: draft.paymentMethod.dbValue,
+          sourcePlatform: draft.sourcePlatform?.dbValue,
+          note: draft.note,
+          vendor: draft.vendor,
+          attachmentPath: draft.attachmentPath,
+        );
+    await _client
+        .from('transactions')
+        .update(<String, dynamic>{
+          'type': transaction.type.dbValue,
+          'occurred_on': transaction.occurredOn.iso8601Date,
+          'amount_minor': transaction.amount.value,
+          'currency': transaction.currency.code,
+          'category_id': transaction.categoryId,
+          'payment_method': transaction.paymentMethod.dbValue,
+          'source_platform': transaction.sourcePlatform?.dbValue,
+          'note': transaction.note,
+          'vendor': transaction.vendor,
+          'attachment_path': transaction.attachmentPath,
+        })
+        .eq('id', transaction.id!)
+        .eq('user_id', _user.id);
+  }
+
+  Future<void> deleteTransaction({required String id}) async {
+    final String transactionId = domain.requireTrimmedText(
+      id,
+      'transaction_id',
+    );
+    await _client
+        .from('transactions')
+        .update(<String, dynamic>{
+          'deleted_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', transactionId)
+        .eq('user_id', _user.id);
   }
 
   Future<DashboardSnapshot> fetchDashboardSnapshot() async {

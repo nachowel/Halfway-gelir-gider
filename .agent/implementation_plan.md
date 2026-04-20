@@ -216,7 +216,7 @@ Reserve planner icin ilk surumde ayri bir ledger tutulmasi zorunlu degil. Haftal
   - Dosyalar: `lib/features/transactions/presentation/income_form_screen.dart`, `lib/features/transactions/widgets/income_form.dart`, `lib/data/remote/transaction_repository.dart`
   - Icerik: Cash, card, Uber, Just Eat ve diger gelir kayitlari; Uber/Just Eat haftalik settlement mantigi
   - Bagimlilik: T4, T8, T9, T6.2
-  - Test: Gelir olusturma, duzenleme, silme; settlement kaydi rapora dogru yansiyor
+  - Test: Gelir create/update/delete repository akisi ve income entry form submit entegrasyonu calisiyor; settlement kaydinda `source_platform` dogru persist ediliyor
 
 - [ ] **T11: Gider kaydi akisi**
   - Dosyalar: `lib/features/transactions/presentation/expense_form_screen.dart`, `lib/features/transactions/widgets/expense_form.dart`, `lib/features/transactions/widgets/attachment_field.dart`

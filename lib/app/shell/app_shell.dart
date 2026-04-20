@@ -32,10 +32,7 @@ class AppShell extends StatelessWidget {
   static const List<BottomNavItem> _navItems = <BottomNavItem>[
     BottomNavItem(icon: Icons.home_rounded, label: 'Ozet'),
     BottomNavItem(icon: Icons.list_alt_rounded, label: 'Islemler'),
-    BottomNavItem(
-      icon: Icons.insert_chart_outlined_rounded,
-      label: 'Raporlar',
-    ),
+    BottomNavItem(icon: Icons.insert_chart_outlined_rounded, label: 'Raporlar'),
     BottomNavItem(icon: Icons.settings_outlined, label: 'Ayarlar'),
   ];
 
@@ -60,30 +57,31 @@ class AppShell extends StatelessWidget {
         ? bottomInset + 12
         : mq.padding.bottom + 16;
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBody: true,
-      body: HiFiScreenBackground(
-        child: SafeArea(
-          bottom: false,
-          child: Stack(
-            children: <Widget>[
-              Positioned.fill(child: MobileScaffold(child: child)),
-              Positioned(
-                left: 14,
-                right: 14,
-                bottom: bottomDockInset,
-                child: BottomNav(
-                  items: _navItems,
-                  currentIndex: _currentIndex,
-                  onTap: (int i) => _onNavTap(context, i),
+      backgroundColor: AppColors.bg,
+      body: MobileScaffold(
+        child: HiFiScreenBackground(
+          child: SafeArea(
+            bottom: false,
+            child: Stack(
+              children: <Widget>[
+                Positioned.fill(child: child),
+                Positioned(
+                  left: 14,
+                  right: 14,
+                  bottom: bottomDockInset,
+                  child: BottomNav(
+                    items: _navItems,
+                    currentIndex: _currentIndex,
+                    onTap: (int i) => _onNavTap(context, i),
+                  ),
                 ),
-              ),
-              Positioned(
-                right: 20,
-                bottom: bottomDockInset + 76,
-                child: HiFiFab(onPressed: () => _showQuickActions(context)),
-              ),
-            ],
+                Positioned(
+                  right: 20,
+                  bottom: bottomDockInset + 76,
+                  child: HiFiFab(onPressed: () => _showQuickActions(context)),
+                ),
+              ],
+            ),
           ),
         ),
       ),
