@@ -6,6 +6,9 @@ import '../../features/auth/presentation/auth_screen.dart';
 import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/entry/presentation/entry_screen.dart';
+import '../../features/expense_detail/presentation/expense_detail_screen.dart';
+import '../../features/income_detail/presentation/income_detail_screen.dart';
+import '../../features/net_profit_detail/presentation/net_profit_detail_screen.dart';
 import '../../features/recurring/presentation/recurring_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/onboarding_screen.dart';
@@ -101,10 +104,121 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
               state.uri.queryParameters['transactionId'];
           return NoTransitionPage<void>(
             key: state.pageKey,
-            child: EntryScreen(
-              kind: entryKind,
-              transactionId: transactionId,
-            ),
+            child: EntryScreen(kind: entryKind, transactionId: transactionId),
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/summary/income',
+        pageBuilder: (BuildContext context, GoRouterState state) {
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const IncomeDetailScreen(),
+            transitionDuration: const Duration(milliseconds: 240),
+            reverseTransitionDuration: const Duration(milliseconds: 220),
+            transitionsBuilder:
+                (
+                  BuildContext context,
+                  Animation<double> animation,
+                  Animation<double> secondaryAnimation,
+                  Widget child,
+                ) {
+                  final Animation<Offset> slide =
+                      Tween<Offset>(
+                        begin: const Offset(0.06, 0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: AppEasing.expressive,
+                        ),
+                      );
+                  final Animation<double> fade = CurvedAnimation(
+                    parent: animation,
+                    curve: AppEasing.standard,
+                  );
+                  return SlideTransition(
+                    position: slide,
+                    child: FadeTransition(opacity: fade, child: child),
+                  );
+                },
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/summary/expenses',
+        pageBuilder: (BuildContext context, GoRouterState state) {
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const ExpenseDetailScreen(),
+            transitionDuration: const Duration(milliseconds: 240),
+            reverseTransitionDuration: const Duration(milliseconds: 220),
+            transitionsBuilder:
+                (
+                  BuildContext context,
+                  Animation<double> animation,
+                  Animation<double> secondaryAnimation,
+                  Widget child,
+                ) {
+                  final Animation<Offset> slide =
+                      Tween<Offset>(
+                        begin: const Offset(0.06, 0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: AppEasing.expressive,
+                        ),
+                      );
+                  final Animation<double> fade = CurvedAnimation(
+                    parent: animation,
+                    curve: AppEasing.standard,
+                  );
+                  return SlideTransition(
+                    position: slide,
+                    child: FadeTransition(opacity: fade, child: child),
+                  );
+                },
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/summary/net-profit',
+        pageBuilder: (BuildContext context, GoRouterState state) {
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: const NetProfitDetailScreen(),
+            transitionDuration: const Duration(milliseconds: 240),
+            reverseTransitionDuration: const Duration(milliseconds: 220),
+            transitionsBuilder:
+                (
+                  BuildContext context,
+                  Animation<double> animation,
+                  Animation<double> secondaryAnimation,
+                  Widget child,
+                ) {
+                  final Animation<Offset> slide =
+                      Tween<Offset>(
+                        begin: const Offset(0.06, 0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: AppEasing.expressive,
+                        ),
+                      );
+                  final Animation<double> fade = CurvedAnimation(
+                    parent: animation,
+                    curve: AppEasing.standard,
+                  );
+                  return SlideTransition(
+                    position: slide,
+                    child: FadeTransition(opacity: fade, child: child),
+                  );
+                },
           );
         },
       ),

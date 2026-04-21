@@ -6,6 +6,7 @@ import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../data/app_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_button.dart';
 import '../../../shared/hi_fi/hi_fi_input_field.dart';
 import '../../../shared/hi_fi/hi_fi_screen_background.dart';
@@ -17,6 +18,7 @@ class OnboardingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLocalizations strings = context.strings;
     final AsyncValue<BusinessSettingsData> settingsState = ref.watch(
       businessSettingsProvider,
     );
@@ -38,17 +40,20 @@ class OnboardingScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text('SETUP', style: AppTypography.eye),
+                      Text(
+                        strings.setup.toUpperCase(),
+                        style: AppTypography.eye,
+                      ),
                       const SizedBox(height: 8),
                       Text(
-                        'We could not load your setup.',
+                        strings.onboardingLoadError,
                         style: AppTypography.h2,
                       ),
                       const SizedBox(height: 8),
                       Text(error.toString(), style: AppTypography.bodySoft),
                       const SizedBox(height: AppSpacing.md),
                       HiFiButton(
-                        label: 'Try again',
+                        label: strings.tryAgain,
                         onPressed: () =>
                             ref.invalidate(businessSettingsProvider),
                       ),
@@ -96,7 +101,7 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
     final String businessName = _businessController.text.trim();
     setState(() {
       _businessError = businessName.isEmpty
-          ? 'Enter your business name.'
+          ? context.strings.enterBusinessName
           : null;
     });
     if (_businessError != null) {
@@ -127,6 +132,7 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -135,10 +141,10 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
         AppSpacing.lg,
       ),
       children: <Widget>[
-        Text('SETUP', style: AppTypography.eye),
+        Text(strings.setup.toUpperCase(), style: AppTypography.eye),
         const SizedBox(height: 8),
         Text(
-          'Finish your business setup',
+          strings.finishBusinessSetup,
           style: AppTypography.h1.copyWith(
             fontSize: 34,
             height: 1.02,
@@ -147,7 +153,7 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
         ),
         const SizedBox(height: 10),
         Text(
-          'We lock the app to UK defaults. Add your business name once and continue.',
+          strings.ukDefaultsSetupCopy,
           style: AppTypography.body.copyWith(
             color: AppColors.inkSoft,
             height: 1.38,
@@ -156,7 +162,7 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
         const SizedBox(height: AppSpacing.lg),
         HiFiInputField(
           controller: _businessController,
-          label: 'Business name',
+          label: strings.businessName,
           helper: widget.initialData.email,
           errorText: _businessError,
           autofocus: true,
@@ -170,26 +176,26 @@ class _OnboardingFormState extends ConsumerState<_OnboardingForm> {
           onSubmitted: (_) => _submit(),
         ),
         const SizedBox(height: AppSpacing.lg),
-        const HiFiSettingsGroup(
-          title: 'Business defaults',
+        HiFiSettingsGroup(
+          title: strings.businessDefaults,
           rows: <HiFiSettingsGroupRowData>[
             HiFiSettingsGroupRowData(
-              label: 'Currency',
+              label: strings.currency,
               trailing: HiFiReadonlyPillValue(label: 'GBP £'),
             ),
             HiFiSettingsGroupRowData(
-              label: 'Timezone',
+              label: strings.timezone,
               trailing: HiFiReadonlyPillValue(label: 'Europe/London'),
             ),
             HiFiSettingsGroupRowData(
-              label: 'Week starts',
-              trailing: HiFiReadonlyPillValue(label: 'Monday'),
+              label: strings.weekStarts,
+              trailing: HiFiReadonlyPillValue(label: strings.monday),
             ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
         HiFiButton(
-          label: 'Continue',
+          label: strings.continueToApp,
           onPressed: _submitting ? null : _submit,
           loading: _submitting,
         ),

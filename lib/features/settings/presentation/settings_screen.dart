@@ -7,11 +7,14 @@ import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../data/app_models.dart';
+import '../../../l10n/app_locale.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_bottom_sheet.dart';
 import '../../../shared/hi_fi/hi_fi_button.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_input_field.dart';
 import '../../../shared/hi_fi/hi_fi_settings_group.dart';
+import '../../../shared/overlay/app_overlay.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -24,141 +27,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _signingOut = false;
 
   Future<void> _editBusinessName(BusinessSettingsData settings) async {
-    final TextEditingController controller = TextEditingController(
-      text: settings.businessName,
-    );
-    final TextEditingController emailController = TextEditingController(
-      text: settings.email,
-    );
-    String? errorText;
-    bool saving = false;
-
-    await showModalBottomSheet<void>(
+    await showAppModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (BuildContext sheetContext) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            final NavigatorState navigator = Navigator.of(sheetContext);
-
-            Future<void> save() async {
-              final String value = controller.text.trim();
-              if (value.isEmpty) {
-                setSheetState(
-                  () => errorText = 'Business name cannot be empty.',
-                );
-                return;
-              }
-
-              setSheetState(() => saving = true);
-              try {
-                await ref
-                    .read(giderRepositoryProvider)
-                    .updateBusinessName(value);
-                ref.read(refreshKeyProvider.notifier).state++;
-                if (!mounted) {
-                  return;
-                }
-                navigator.pop();
-              } on AuthException catch (error) {
-                if (!mounted) {
-                  return;
-                }
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: AppColors.expense,
-                    content: Text(error.message),
-                  ),
-                );
-              } finally {
-                if (mounted) {
-                  setSheetState(() => saving = false);
-                }
-              }
-            }
-
-            return HiFiBottomSheet(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text('PROFILE', style: AppTypography.eye),
-                  const SizedBox(height: 4),
-                  RichText(
-                    text: TextSpan(
-                      style: AppTypography.h2,
-                      children: <InlineSpan>[
-                        const TextSpan(text: 'Update '),
-                        TextSpan(
-                          text: 'business',
-                          style: AppTypography.h2.copyWith(
-                            color: AppColors.brand,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const TextSpan(text: ' name'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  HiFiInputField(
-                    controller: controller,
-                    label: 'Business name',
-                    errorText: errorText,
-                    autofocus: true,
-                    readOnly: saving,
-                    onChanged: (_) {
-                      if (errorText != null) {
-                        setSheetState(() => errorText = null);
-                      }
-                    },
-                    onSubmitted: (_) => save(),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  HiFiInputField(
-                    controller: emailController,
-                    label: 'Email',
-                    readOnly: true,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: HiFiButton(
-                          label: 'Cancel',
-                          variant: HiFiButtonVariant.ghost,
-                          onPressed: saving
-                              ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        flex: 16,
-                        child: HiFiButton(
-                          label: 'Save changes',
-                          loading: saving,
-                          onPressed: saving ? null : save,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      builder: (_) => _EditBusinessNameSheet(settings: settings),
     );
-
-    controller.dispose();
-    emailController.dispose();
   }
 
   Future<void> _confirmSignOut() async {
-    await showModalBottomSheet<void>(
+    await showAppModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -168,12 +46,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('SECURITY', style: AppTypography.eye),
+              Text(
+                sheetContext.strings.security.toUpperCase(),
+                style: AppTypography.eye,
+              ),
               const SizedBox(height: 4),
-              Text('Sign out of this device?', style: AppTypography.h2),
+              Text(
+                sheetContext.strings.signOutDeviceQuestion,
+                style: AppTypography.h2,
+              ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'This closes the current session and returns to the auth flow.',
+                sheetContext.strings.signOutDeviceBody,
                 style: AppTypography.bodySoft.copyWith(height: 1.45),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -181,16 +65,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 children: <Widget>[
                   Expanded(
                     child: HiFiButton(
-                      label: 'Cancel',
+                      label: sheetContext.strings.cancel,
                       variant: HiFiButtonVariant.ghost,
                       onPressed: () => Navigator.of(sheetContext).pop(),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
-                    flex: 16,
                     child: HiFiButton(
-                      label: 'Sign out',
+                      label: sheetContext.strings.signOut,
                       variant: HiFiButtonVariant.expense,
                       loading: _signingOut,
                       onPressed: _signingOut
@@ -203,6 +86,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ],
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickLanguage(AppLocale currentLocale) async {
+    await showAppModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        final AppLocalizations strings = sheetContext.strings;
+        return HiFiBottomSheet(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(strings.language.toUpperCase(), style: AppTypography.eye),
+              const SizedBox(height: 4),
+              Text(strings.chooseLanguage, style: AppTypography.h2),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                strings.languageAppliesImmediately,
+                style: AppTypography.bodySoft.copyWith(height: 1.45),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              for (final AppLocale locale in AppLocale.values) ...<Widget>[
+                HiFiSettingsGroup(
+                  title: '',
+                  rows: <HiFiSettingsGroupRowData>[
+                    HiFiSettingsGroupRowData(
+                      label: strings.languageName(locale),
+                      trailing: currentLocale == locale
+                          ? const HiFiReadonlyPillValue(label: '✓')
+                          : null,
+                      onTap: () async {
+                        await ref
+                            .read(appLocaleProvider.notifier)
+                            .setLocale(locale);
+                        if (!sheetContext.mounted) {
+                          return;
+                        }
+                        Navigator.of(sheetContext).pop();
+                      },
+                    ),
+                  ],
+                ),
+                if (locale != AppLocale.values.last)
+                  const SizedBox(height: AppSpacing.xs),
+              ],
             ],
           ),
         );
@@ -232,6 +167,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    final AppLocale currentLocale = ref.watch(appLocaleProvider);
     final AsyncValue<BusinessSettingsData> settingsState = ref.watch(
       businessSettingsProvider,
     );
@@ -250,7 +187,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               style: AppTypography.h1,
               children: <InlineSpan>[
                 TextSpan(
-                  text: 'Settings',
+                  text: strings.settings,
                   style: AppTypography.h1.copyWith(
                     color: AppColors.brand,
                     fontStyle: FontStyle.italic,
@@ -260,7 +197,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text('Preferences & account', style: AppTypography.lbl),
+          Text(strings.preferencesAccount, style: AppTypography.lbl),
           const SizedBox(height: AppSpacing.sm),
           _ProfileCard(
             businessName: settings.businessName,
@@ -270,46 +207,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
           HiFiSettingsGroup(
-            title: 'Preferences',
+            title: strings.preferences,
             rows: <HiFiSettingsGroupRowData>[
               HiFiSettingsGroupRowData(
-                label: 'Week starts',
+                label: strings.language,
                 trailing: HiFiReadonlyPillValue(
-                  label: settings.weekStartsOn == 1 ? 'Monday' : 'Custom',
+                  label: strings.languageName(currentLocale),
+                ),
+                onTap: () => _pickLanguage(currentLocale),
+              ),
+              HiFiSettingsGroupRowData(
+                label: strings.weekStarts,
+                trailing: HiFiReadonlyPillValue(
+                  label: settings.weekStartsOn == 1
+                      ? strings.monday
+                      : strings.customWeekStart,
                 ),
               ),
               HiFiSettingsGroupRowData(
-                label: 'Currency',
+                label: strings.currency,
                 trailing: HiFiReadonlyPillValue(label: settings.currency),
               ),
               HiFiSettingsGroupRowData(
-                label: 'Timezone',
+                label: strings.timezone,
                 trailing: HiFiReadonlyPillValue(label: settings.timezone),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
           HiFiSettingsGroup(
-            title: 'Data',
+            title: strings.data,
             rows: <HiFiSettingsGroupRowData>[
               HiFiSettingsGroupRowData(
-                label: 'Categories',
-                value: '7 expense · 3 income',
+                label: strings.categories,
+                value:
+                    '7 ${strings.expense.toLowerCase()} · 3 ${strings.income.toLowerCase()}',
                 onTap: () => context.push('/settings/categories'),
               ),
               HiFiSettingsGroupRowData(
-                label: 'Recurring expenses',
-                value: '5 active',
+                label: strings.recurringExpenses,
+                value: '5 ${strings.active.toLowerCase()}',
                 onTap: () => context.push('/settings/recurring'),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
           HiFiSettingsGroup(
-            title: 'Security',
+            title: strings.security,
             rows: <HiFiSettingsGroupRowData>[
               HiFiSettingsGroupRowData(
-                label: 'Sign out',
+                label: strings.signOut,
                 destructive: true,
                 onTap: _confirmSignOut,
               ),
@@ -317,7 +264,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Center(
-            child: Text('gider · v1.0 · private', style: AppTypography.meta),
+            child: Text(strings.versionPrivate, style: AppTypography.meta),
           ),
         ],
       ),
@@ -328,12 +275,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text('We could not load your settings.', style: AppTypography.h2),
+              Text(strings.settingsLoadError, style: AppTypography.h2),
               const SizedBox(height: 8),
               Text(error.toString(), style: AppTypography.bodySoft),
               const SizedBox(height: AppSpacing.md),
               HiFiButton(
-                label: 'Try again',
+                label: strings.tryAgain,
                 onPressed: () => ref.invalidate(businessSettingsProvider),
               ),
             ],
@@ -404,6 +351,116 @@ class _ProfileCard extends StatelessWidget {
                 color: AppColors.inkFade,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditBusinessNameSheet extends ConsumerStatefulWidget {
+  const _EditBusinessNameSheet({required this.settings});
+
+  final BusinessSettingsData settings;
+
+  @override
+  ConsumerState<_EditBusinessNameSheet> createState() =>
+      _EditBusinessNameSheetState();
+}
+
+class _EditBusinessNameSheetState
+    extends ConsumerState<_EditBusinessNameSheet> {
+  late final TextEditingController _businessController;
+  late final TextEditingController _emailController;
+
+  String? _errorText;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _businessController = TextEditingController(
+      text: widget.settings.businessName,
+    );
+    _emailController = TextEditingController(text: widget.settings.email);
+  }
+
+  @override
+  void dispose() {
+    _businessController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final String value = _businessController.text.trim();
+    if (value.isEmpty) {
+      setState(() => _errorText = context.strings.businessNameCannotBeEmpty);
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(giderRepositoryProvider).updateBusinessName(value);
+      ref.read(refreshKeyProvider.notifier).state++;
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+    } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.expense,
+          content: Text(error.message),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    return HiFiBottomSheet(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(strings.profile.toUpperCase(), style: AppTypography.eye),
+          const SizedBox(height: 4),
+          Text(strings.updateBusinessName, style: AppTypography.h2),
+          const SizedBox(height: AppSpacing.md),
+          HiFiInputField(
+            controller: _businessController,
+            label: strings.businessName,
+            errorText: _errorText,
+            autofocus: true,
+            readOnly: _saving,
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() => _errorText = null);
+              }
+            },
+            onSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          HiFiInputField(
+            controller: _emailController,
+            label: strings.email,
+            readOnly: true,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          HiFiButton(
+            label: strings.saveChanges,
+            loading: _saving,
+            onPressed: _saving ? null : _save,
           ),
         ],
       ),

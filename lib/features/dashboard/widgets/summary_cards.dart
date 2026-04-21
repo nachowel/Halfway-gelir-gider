@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_bar.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_hero_card.dart';
@@ -43,21 +44,25 @@ class CashSplitSummaryCardData {
     required this.cashValue,
     required this.cardValue,
     required this.progress,
+    this.helperText,
   });
 
   final String cashValue;
   final String cardValue;
   final double progress;
+  final String? helperText;
 }
 
 class HeroSummaryCard extends StatelessWidget {
-  const HeroSummaryCard({required this.data, super.key});
+  const HeroSummaryCard({required this.data, this.onTap, super.key});
 
   final HeroSummaryCardData data;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return HiFiHeroCard(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -94,9 +99,10 @@ class HeroSummaryCard extends StatelessWidget {
 }
 
 class SummaryMetricCard extends StatelessWidget {
-  const SummaryMetricCard({required this.data, super.key});
+  const SummaryMetricCard({required this.data, this.onTap, super.key});
 
   final SummaryMetricCardData data;
+  final VoidCallback? onTap;
 
   Color get _valueColor {
     switch (data.tone) {
@@ -112,6 +118,7 @@ class SummaryMetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HiFiCard.compact(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -134,6 +141,7 @@ class CashSplitSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     return HiFiCard.compact(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,8 +149,14 @@ class CashSplitSummaryCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Text('Cash / card', style: AppTypography.lbl),
-              Text('INCOME SPLIT', style: AppTypography.eye),
+              Text(
+                '${strings.cash} / ${strings.card}',
+                style: AppTypography.lbl,
+              ),
+              Text(
+                '${strings.cash.toUpperCase()}/${strings.card.toUpperCase()}',
+                style: AppTypography.eye,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -153,7 +167,7 @@ class CashSplitSummaryCard extends StatelessWidget {
                 flex: 10,
                 child: _CashSplitCell(
                   icon: Icons.payments_outlined,
-                  label: 'CASH',
+                  label: strings.cash.toUpperCase(),
                   value: data.cashValue,
                 ),
               ),
@@ -161,7 +175,7 @@ class CashSplitSummaryCard extends StatelessWidget {
                 flex: 14,
                 child: _CashSplitCell(
                   icon: Icons.credit_card_rounded,
-                  label: 'CARD',
+                  label: strings.card.toUpperCase(),
                   value: data.cardValue,
                 ),
               ),
@@ -169,6 +183,13 @@ class CashSplitSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.smTight),
           HiFiBar(value: data.progress, tone: HiFiBarTone.brand),
+          if (data.helperText != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(
+              data.helperText!,
+              style: AppTypography.meta.copyWith(color: AppColors.inkSoft),
+            ),
+          ],
         ],
       ),
     );

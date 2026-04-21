@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'conflict_policy.dart';
@@ -39,6 +40,11 @@ class SupabaseTransactionSyncGateway implements TransactionSyncGateway {
 
   @override
   Future<String> createTransaction(Map<String, dynamic> payload) async {
+    final bool isIncome = payload['type'] == 'income';
+    if (isIncome) {
+      debugPrint('INCOME_SUPABASE_INSERT_STARTED');
+    }
+
     try {
       final Map<String, dynamic> row = await _client
           .from('transactions')
@@ -60,7 +66,63 @@ class SupabaseTransactionSyncGateway implements TransactionSyncGateway {
           .select('id')
           .single();
 
+      if (isIncome) {
+        debugPrint('INCOME_SUPABASE_INSERT_SUCCESS');
+      }
       return row['id'] as String;
+    } on PostgrestException catch (error) {
+      if (isIncome) {
+        debugPrint('INCOME_SUPABASE_INSERT_ERROR: ${error.message}');
+      }
+      throw SyncRemoteException(
+        message: error.message,
+        code: error.code,
+        details: error.details,
+      );
+    } catch (error) {
+      if (isIncome) {
+        debugPrint('INCOME_SUPABASE_INSERT_ERROR: $error');
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> updateTransaction(Map<String, dynamic> payload) async {
+    try {
+      await _client
+          .from('transactions')
+          .update(<String, dynamic>{
+            'type': payload['type'],
+            'occurred_on': payload['occurred_on'],
+            'amount_minor': payload['amount_minor'],
+            'currency': payload['currency'],
+            'category_id': payload['category_id'],
+            'payment_method': payload['payment_method'],
+            'source_platform': payload['source_platform'],
+            'note': payload['note'],
+            'vendor': payload['vendor'],
+            'attachment_path': payload['attachment_path'],
+          })
+          .eq('id', payload['id'])
+          .eq('user_id', _user.id);
+    } on PostgrestException catch (error) {
+      throw SyncRemoteException(
+        message: error.message,
+        code: error.code,
+        details: error.details,
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteTransaction(Map<String, dynamic> payload) async {
+    try {
+      await _client
+          .from('transactions')
+          .update(<String, dynamic>{'deleted_at': payload['deleted_at']})
+          .eq('id', payload['id'])
+          .eq('user_id', _user.id);
     } on PostgrestException catch (error) {
       throw SyncRemoteException(
         message: error.message,

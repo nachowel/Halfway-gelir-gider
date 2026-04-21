@@ -31,6 +31,11 @@ abstract final class AppColors {
   static const Color incomeSoft = Color(0xFFD9ECDD);
   static const Color incomeInk = Color(0xFF1E5F34);
 
+  // Card income (blue)
+  static const Color cardIncome = Color(0xFF2E6FAF);
+  static const Color cardIncomeSoft = Color(0xFFDCE8F5);
+  static const Color cardIncomeInk = Color(0xFF1F527F);
+
   // Expense (terracotta)
   static const Color expense = Color(0xFFC2492A);
   static const Color expenseSoft = Color(0xFFF3DBCF);
@@ -123,39 +128,23 @@ abstract final class AppSpacing {
 /// Shadow layer sets extracted from hi-fi CSS tokens.
 abstract final class AppShadows {
   static const List<BoxShadow> sm = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x0D09282B),
-      offset: Offset(0, 1),
-      blurRadius: 2,
-    ),
+    BoxShadow(color: Color(0x0D09282B), offset: Offset(0, 1), blurRadius: 2),
     BoxShadow(color: Color(0x0809282B), offset: Offset(0, 1), blurRadius: 1),
   ];
 
   static const List<BoxShadow> md = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x1209282B),
-      offset: Offset(0, 6),
-      blurRadius: 14,
-    ),
+    BoxShadow(color: Color(0x1209282B), offset: Offset(0, 6), blurRadius: 14),
     BoxShadow(color: Color(0x0D09282B), offset: Offset(0, 2), blurRadius: 4),
   ];
 
   static const List<BoxShadow> lg = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x1A09282B),
-      offset: Offset(0, 20),
-      blurRadius: 40,
-    ),
+    BoxShadow(color: Color(0x1A09282B), offset: Offset(0, 20), blurRadius: 40),
     BoxShadow(color: Color(0x0F09282B), offset: Offset(0, 6), blurRadius: 14),
   ];
 
   /// FAB shadow uses brand-tinted drop.
   static const List<BoxShadow> fab = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x66094A4D),
-      offset: Offset(0, 8),
-      blurRadius: 20,
-    ),
+    BoxShadow(color: Color(0x66094A4D), offset: Offset(0, 8), blurRadius: 20),
     BoxShadow(color: Color(0x33094A4D), offset: Offset(0, 2), blurRadius: 4),
   ];
 }

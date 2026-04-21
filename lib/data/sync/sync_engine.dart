@@ -3,6 +3,10 @@ import 'conflict_policy.dart';
 
 abstract class TransactionSyncGateway {
   Future<String> createTransaction(Map<String, dynamic> payload);
+
+  Future<void> updateTransaction(Map<String, dynamic> payload);
+
+  Future<void> deleteTransaction(Map<String, dynamic> payload);
 }
 
 class SyncRunResult {
@@ -76,6 +80,33 @@ class SyncEngine {
               nonRetryableFailures++;
           }
         case OutboxOperationType.updateTransaction:
+          final _ProcessOutcome outcome = await _processUpdateTransaction(
+            entry,
+          );
+          switch (outcome) {
+            case _ProcessOutcome.succeeded:
+              succeeded++;
+            case _ProcessOutcome.alreadyApplied:
+              alreadyApplied++;
+            case _ProcessOutcome.retryableFailure:
+              retryableFailures++;
+            case _ProcessOutcome.nonRetryableFailure:
+              nonRetryableFailures++;
+          }
+        case OutboxOperationType.deleteTransaction:
+          final _ProcessOutcome outcome = await _processDeleteTransaction(
+            entry,
+          );
+          switch (outcome) {
+            case _ProcessOutcome.succeeded:
+              succeeded++;
+            case _ProcessOutcome.alreadyApplied:
+              alreadyApplied++;
+            case _ProcessOutcome.retryableFailure:
+              retryableFailures++;
+            case _ProcessOutcome.nonRetryableFailure:
+              nonRetryableFailures++;
+          }
         case OutboxOperationType.createRecurringExpense:
         case OutboxOperationType.markRecurringPaid:
           await _outboxRepository.markNonRetryableFailure(
@@ -139,6 +170,67 @@ class SyncEngine {
           );
           return _ProcessOutcome.nonRetryableFailure;
       }
+    }
+  }
+
+  Future<_ProcessOutcome> _processUpdateTransaction(
+    PendingOutboxEntry entry,
+  ) async {
+    try {
+      await _transactionGateway.updateTransaction(entry.payload);
+      await _outboxRepository.finalizeEntrySuccess(
+        entryId: entry.id,
+        completedAt: _clock().toUtc(),
+      );
+      return _ProcessOutcome.succeeded;
+    } catch (error) {
+      return _handleMutationFailure(entry: entry, error: error);
+    }
+  }
+
+  Future<_ProcessOutcome> _processDeleteTransaction(
+    PendingOutboxEntry entry,
+  ) async {
+    try {
+      await _transactionGateway.deleteTransaction(entry.payload);
+      await _outboxRepository.finalizeEntrySuccess(
+        entryId: entry.id,
+        completedAt: _clock().toUtc(),
+      );
+      return _ProcessOutcome.succeeded;
+    } catch (error) {
+      return _handleMutationFailure(entry: entry, error: error);
+    }
+  }
+
+  Future<_ProcessOutcome> _handleMutationFailure({
+    required PendingOutboxEntry entry,
+    required Object error,
+  }) async {
+    final SyncFailureDecision decision = _conflictPolicy.classify(error);
+    switch (decision.type) {
+      case SyncFailureType.alreadyApplied:
+        await _outboxRepository.finalizeEntrySuccess(
+          entryId: entry.id,
+          completedAt: _clock().toUtc(),
+        );
+        return _ProcessOutcome.alreadyApplied;
+      case SyncFailureType.retryable:
+        final DateTime retryAt = _clock().toUtc().add(
+          _conflictPolicy.retryDelay(entry.attemptCount + 1),
+        );
+        await _outboxRepository.markRetryableFailure(
+          entryId: entry.id,
+          errorMessage: decision.message,
+          retryAt: retryAt,
+        );
+        return _ProcessOutcome.retryableFailure;
+      case SyncFailureType.nonRetryable:
+        await _outboxRepository.markNonRetryableFailure(
+          entryId: entry.id,
+          errorMessage: decision.message,
+        );
+        return _ProcessOutcome.nonRetryableFailure;
     }
   }
 }

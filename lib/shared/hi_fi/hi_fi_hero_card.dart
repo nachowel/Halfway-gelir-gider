@@ -10,18 +10,20 @@ class HiFiHeroCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(AppSpacing.md),
     this.radius = AppRadius.lg,
+    this.onTap,
     super.key,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final BorderRadius borderRadius = BorderRadius.circular(radius);
 
-    return Container(
+    final Widget content = Container(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
         border: Border.all(color: AppColors.cardHighlightBorder),
@@ -115,6 +117,17 @@ class HiFiHeroCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: borderRadius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onTap, child: content),
     );
   }
 }

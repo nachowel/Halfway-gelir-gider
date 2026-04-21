@@ -1,177 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../data/app_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_bar.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
 import '../../../shared/hi_fi/hi_fi_recurring_row.dart';
 import 'mark_paid_sheet.dart';
+import 'recurring_form_sheet.dart';
 
-class RecurringScreen extends StatefulWidget {
+class RecurringScreen extends ConsumerWidget {
   const RecurringScreen({super.key});
 
   @override
-  State<RecurringScreen> createState() => _RecurringScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool canNavigateBack = Navigator.of(context).canPop();
+    final itemsAsync = ref.watch(recurringItemsProvider);
+    final summaryAsync = ref.watch(recurringSummaryProvider);
 
-class _RecurringScreenState extends State<RecurringScreen> {
-  late List<_RecurringItem> _items;
-
-  @override
-  void initState() {
-    super.initState();
-    _items = <_RecurringItem>[
-      _RecurringItem(
-        id: 'gas',
-        title: 'Gas bill',
-        amountLabel: '£62',
-        amountMinor: 6200,
-        status: HiFiRecurringStatus.late,
-        statusLabel: 'Late · 3d',
-        frequencyMeta: 'Every month · was due 13 Apr',
-        frequencyLabel: 'Monthly',
-        currentDueDate: DateTime(2026, 4, 13),
-        nextDueDate: DateTime(2026, 5, 13),
-        defaultMethod: RecurringPaymentMethod.bankTransfer,
-      ),
-      _RecurringItem(
-        id: 'rent',
-        title: 'Rent',
-        amountLabel: '£850',
-        amountMinor: 85000,
-        status: HiFiRecurringStatus.soon,
-        statusLabel: 'In 2 days',
-        frequencyMeta: 'Every month · Fri 18 Apr',
-        frequencyLabel: 'Monthly',
-        currentDueDate: DateTime(2026, 4, 18),
-        nextDueDate: DateTime(2026, 5, 18),
-        defaultMethod: RecurringPaymentMethod.bankTransfer,
-      ),
-      _RecurringItem(
-        id: 'internet',
-        title: 'Internet',
-        amountLabel: '£38',
-        amountMinor: 3800,
-        status: HiFiRecurringStatus.later,
-        statusLabel: 'Later',
-        frequencyMeta: 'In 6 days · Tue 22',
-        frequencyLabel: 'Monthly',
-        currentDueDate: DateTime(2026, 4, 22),
-        nextDueDate: DateTime(2026, 5, 22),
-        defaultMethod: RecurringPaymentMethod.card,
-        icon: Icons.wifi_rounded,
-      ),
-      _RecurringItem(
-        id: 'electricity',
-        title: 'Electricity',
-        amountLabel: '£124',
-        amountMinor: 12400,
-        status: HiFiRecurringStatus.later,
-        statusLabel: 'Later',
-        frequencyMeta: 'In 11 days · Sun 27',
-        frequencyLabel: 'Monthly',
-        currentDueDate: DateTime(2026, 4, 27),
-        nextDueDate: DateTime(2026, 5, 27),
-        defaultMethod: RecurringPaymentMethod.bankTransfer,
-        icon: Icons.bolt_rounded,
-      ),
-      _RecurringItem(
-        id: 'insurance',
-        title: 'Insurance',
-        amountLabel: '£86',
-        amountMinor: 8600,
-        status: HiFiRecurringStatus.later,
-        statusLabel: 'Later',
-        frequencyMeta: 'Next month · 3 May',
-        frequencyLabel: 'Monthly',
-        currentDueDate: DateTime(2026, 5, 3),
-        nextDueDate: DateTime(2026, 6, 3),
-        defaultMethod: RecurringPaymentMethod.other,
-        icon: Icons.shield_outlined,
-      ),
-    ];
-  }
-
-  Future<void> _openMarkPaidSheet(_RecurringItem item) async {
-    await showMarkPaidSheet(
-      context,
-      draft: RecurringPaymentDraft(
-        id: item.id,
-        title: item.title,
-        frequencyLabel: item.frequencyLabel,
-        plannedAmountMinor: item.amountMinor,
-        currentDueDate: item.currentDueDate,
-        nextDueDate: item.nextDueDate,
-        defaultMethod: item.defaultMethod,
-      ),
-      onConfirm: (RecurringPaymentResult result) async {
-        await Future<void>.delayed(const Duration(milliseconds: 150));
-        if (!mounted) return;
-        setState(() {
-          _items = _items.map((_RecurringItem current) {
-            if (current.id != item.id) return current;
-            return current.copyWith(
-              amountMinor: result.amountMinor,
-              amountLabel: _formatCurrency(result.amountMinor),
-              status: HiFiRecurringStatus.later,
-              statusLabel: 'Later',
-              frequencyMeta:
-                  'Next month · ${_formatMonthDay(item.nextDueDate)}',
-            );
-          }).toList()..sort(_sortRecurring);
-        });
-      },
-    );
-  }
-
-  int _sortRecurring(_RecurringItem a, _RecurringItem b) {
-    int weight(HiFiRecurringStatus status) {
-      switch (status) {
-        case HiFiRecurringStatus.late:
-          return 0;
-        case HiFiRecurringStatus.soon:
-          return 1;
-        case HiFiRecurringStatus.later:
-          return 2;
-      }
-    }
-
-    final int cmp = weight(a.status).compareTo(weight(b.status));
-    if (cmp != 0) return cmp;
-    return a.currentDueDate.compareTo(b.currentDueDate);
-  }
-
-  String _formatCurrency(int amountMinor) {
-    final String value = (amountMinor / 100).toStringAsFixed(2);
-    final List<String> parts = value.split('.');
-    final String whole = parts.first.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (Match _) => ',',
-    );
-    return '£$whole.${parts.last}';
-  }
-
-  String _formatMonthDay(DateTime value) {
-    const List<String> months = <String>[
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${value.day} ${months[value.month - 1]}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -180,92 +30,354 @@ class _RecurringScreenState extends State<RecurringScreen> {
         120,
       ),
       children: <Widget>[
-        const _RecurringHeader(),
+        _RecurringHeader(
+          canNavigateBack: canNavigateBack,
+          onBack: () => Navigator.of(context).maybePop(),
+          onAdd: () => showRecurringFormSheet(context),
+        ),
         const SizedBox(height: AppSpacing.md),
-        const _RecurringSummaryCard(),
+        _SummaryCard(summaryAsync: summaryAsync),
         const SizedBox(height: AppSpacing.sm),
-        for (int i = 0; i < _items.length; i++) ...<Widget>[
-          HiFiRecurringRow(
-            title: _items[i].title,
-            status: _items[i].status,
-            statusLabel: _items[i].statusLabel,
-            frequencyMeta: _items[i].frequencyMeta,
-            amount: _items[i].amountLabel,
-            icon: _items[i].icon,
-            onPaidTap: () => _openMarkPaidSheet(_items[i]),
+        itemsAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.only(top: 48),
+            child: Center(child: CircularProgressIndicator()),
           ),
-          if (i != _items.length - 1) const SizedBox(height: AppSpacing.xs),
+          error: (_, __) => const _ErrorState(),
+          data: (items) {
+            if (items.isEmpty) return const _EmptyState();
+            return _ItemList(items: items);
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ItemList extends ConsumerWidget {
+  const _ItemList({required this.items});
+
+  final List<RecurringUiItem> items;
+
+  HiFiRecurringStatus _toHiFiStatus(RecurringUiStatus s) => switch (s) {
+    RecurringUiStatus.late => HiFiRecurringStatus.late,
+    RecurringUiStatus.soon => HiFiRecurringStatus.soon,
+    RecurringUiStatus.later => HiFiRecurringStatus.later,
+  };
+
+  String _formatAmount(int minor) {
+    final pounds = minor ~/ 100;
+    final pence = minor % 100;
+    return '£$pounds.${pence.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      children: <Widget>[
+        for (int i = 0; i < items.length; i++) ...<Widget>[
+          GestureDetector(
+            onTap: () =>
+                showRecurringFormSheet(context, existing: items[i].record),
+            child: HiFiRecurringRow(
+              title: items[i].record.name,
+              status: _toHiFiStatus(items[i].status),
+              statusLabel: items[i].statusLabel,
+              frequencyMeta: items[i].frequencyMeta,
+              amount: _formatAmount(items[i].record.amountMinor),
+              icon: items[i].icon,
+              onPaidTap: () => _openMarkPaid(context, ref, items[i]),
+            ),
+          ),
+          if (i != items.length - 1) const SizedBox(height: AppSpacing.xs),
         ],
       ],
+    );
+  }
+
+  DateTime _nextDueAfter(DateTime current, RecurringFrequencyType frequency) {
+    return switch (frequency) {
+      RecurringFrequencyType.weekly => DateTime(
+        current.year,
+        current.month,
+        current.day + 7,
+      ),
+      RecurringFrequencyType.monthly => DateTime(
+        current.year,
+        current.month + 1,
+        current.day,
+      ),
+      RecurringFrequencyType.quarterly => DateTime(
+        current.year,
+        current.month + 3,
+        current.day,
+      ),
+      RecurringFrequencyType.yearly => DateTime(
+        current.year + 1,
+        current.month,
+        current.day,
+      ),
+    };
+  }
+
+  Future<void> _openMarkPaid(
+    BuildContext context,
+    WidgetRef ref,
+    RecurringUiItem item,
+  ) async {
+    final DateTime nextDue = _nextDueAfter(
+      item.record.nextDueOn,
+      item.record.frequency,
+    );
+    await showMarkPaidSheet(
+      context,
+      draft: RecurringPaymentDraft(
+        id: item.record.id,
+        title: item.record.name,
+        frequencyLabel: context.strings.recurringFrequencyLabel(
+          item.record.frequency,
+        ),
+        plannedAmountMinor: item.record.amountMinor,
+        currentDueDate: item.record.nextDueOn,
+        nextDueDate: nextDue,
+        defaultMethod: item.record.defaultPaymentMethod == null
+            ? null
+            : _toMarkPaidMethod(item.record.defaultPaymentMethod!),
+      ),
+      onConfirm: (RecurringPaymentResult result) async {
+        await ref
+            .read(giderRepositoryProvider)
+            .markRecurringPaid(
+              recurringExpenseId: item.record.id,
+              paidOn: result.paidOn,
+              amountMinor: result.amountMinor,
+              method: _toPaymentMethodType(result.method),
+            );
+        ref.invalidate(recurringItemsProvider);
+        ref.invalidate(recurringSummaryProvider);
+        ref.invalidate(dashboardSnapshotProvider);
+      },
+    );
+  }
+
+  RecurringPaymentMethod _toMarkPaidMethod(PaymentMethodType m) => switch (m) {
+    PaymentMethodType.cash => RecurringPaymentMethod.cash,
+    PaymentMethodType.card => RecurringPaymentMethod.card,
+    PaymentMethodType.bankTransfer => RecurringPaymentMethod.bankTransfer,
+    PaymentMethodType.other => RecurringPaymentMethod.other,
+  };
+
+  PaymentMethodType _toPaymentMethodType(RecurringPaymentMethod m) =>
+      switch (m) {
+        RecurringPaymentMethod.cash => PaymentMethodType.cash,
+        RecurringPaymentMethod.card => PaymentMethodType.card,
+        RecurringPaymentMethod.bankTransfer => PaymentMethodType.bankTransfer,
+        RecurringPaymentMethod.other => PaymentMethodType.other,
+      };
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.summaryAsync});
+
+  final AsyncValue<RecurringSummarySnapshot> summaryAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    return summaryAsync.when(
+      loading: () => HiFiCard.compact(
+        child: Text(strings.loading, style: AppTypography.meta),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (snapshot) {
+        final total = snapshot.totalMinor;
+        final paid = snapshot.paidMinor;
+        final remaining = total - paid;
+        final fraction = total == 0 ? 0.0 : (paid / total).clamp(0.0, 1.0);
+        return HiFiCard.compact(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(strings.summaryThisMonth, style: AppTypography.eye),
+                  Text(
+                    strings.currencyMinor(total),
+                    style: AppTypography.numSm,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              HiFiBar(value: fraction, tone: HiFiBarTone.expense),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Text(
+                    strings.paidAmountLabel(strings.currencyMinor(paid)),
+                    style: AppTypography.meta,
+                  ),
+                  Text(
+                    strings.remainingAmountLabel(
+                      strings.currencyMinor(remaining),
+                    ),
+                    style: AppTypography.meta,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
 class _RecurringHeader extends StatelessWidget {
-  const _RecurringHeader();
+  const _RecurringHeader({
+    required this.canNavigateBack,
+    required this.onBack,
+    required this.onAdd,
+  });
+
+  final bool canNavigateBack;
+  final VoidCallback onBack;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final AppLocalizations strings = context.strings;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('MONTHLY', style: AppTypography.eye),
-              const SizedBox(height: 4),
-              RichText(
-                text: TextSpan(
-                  style: AppTypography.h1,
-                  children: <InlineSpan>[
-                    TextSpan(
-                      text: 'Recurring',
-                      style: AppTypography.h1.copyWith(
-                        fontStyle: FontStyle.italic,
-                        color: AppColors.brand,
-                      ),
-                    ),
-                  ],
+        Row(
+          children: <Widget>[
+            if (canNavigateBack)
+              _HeaderTextAction(
+                key: const ValueKey<String>('recurring-back-button'),
+                icon: Icons.chevron_left_rounded,
+                label: strings.back,
+                onTap: onBack,
+              )
+            else
+              Text(strings.monthly.toUpperCase(), style: AppTypography.eye),
+            const Spacer(),
+            _HeaderIconAction(
+              key: const ValueKey<String>('recurring-add-button'),
+              icon: Icons.add_rounded,
+              onTap: onAdd,
+            ),
+          ],
+        ),
+        if (canNavigateBack) ...<Widget>[
+          const SizedBox(height: AppSpacing.xs),
+          Text(strings.monthly.toUpperCase(), style: AppTypography.eye),
+        ],
+        const SizedBox(height: 4),
+        RichText(
+          text: TextSpan(
+            style: AppTypography.h1,
+            children: <InlineSpan>[
+              TextSpan(
+                text: strings.recurring,
+                style: AppTypography.h1.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.brand,
                 ),
               ),
             ],
           ),
-        ),
-        const HiFiIconTile(
-          icon: Icons.add_rounded,
-          size: HiFiIconTileSize.small,
-          tone: HiFiIconTileTone.brand,
         ),
       ],
     );
   }
 }
 
-class _RecurringSummaryCard extends StatelessWidget {
-  const _RecurringSummaryCard();
+class _HeaderTextAction extends StatelessWidget {
+  const _HeaderTextAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return HiFiCard.compact(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text('THIS MONTH', style: AppTypography.eye),
-              Text('£1,620', style: AppTypography.numSm),
+              Icon(icon, size: 18, color: AppColors.inkSoft),
+              const SizedBox(width: 2),
+              Text(label, style: AppTypography.bodySoft.copyWith(fontSize: 13)),
             ],
           ),
-          const SizedBox(height: AppSpacing.xs),
-          const HiFiBar(value: 0.42, tone: HiFiBarTone.expense),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIconAction extends StatelessWidget {
+  const _HeaderIconAction({required this.icon, required this.onTap, super.key});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: HiFiIconTile(
+              icon: icon,
+              size: HiFiIconTileSize.small,
+              tone: HiFiIconTileTone.brand,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    return Padding(
+      padding: const EdgeInsets.only(top: 64),
+      child: Column(
+        children: <Widget>[
+          Icon(Icons.event_repeat_rounded, size: 48, color: AppColors.inkFade),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            strings.noRecurringExpenses,
+            style: AppTypography.body.copyWith(color: AppColors.ink),
+          ),
           const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text('£680 paid', style: AppTypography.meta),
-              Text('£940 remaining', style: AppTypography.meta),
-            ],
+          Text(
+            strings.tapPlusToAddFirstRecurring,
+            style: AppTypography.meta.copyWith(color: AppColors.inkSoft),
           ),
         ],
       ),
@@ -273,55 +385,29 @@ class _RecurringSummaryCard extends StatelessWidget {
   }
 }
 
-class _RecurringItem {
-  const _RecurringItem({
-    required this.id,
-    required this.title,
-    required this.amountLabel,
-    required this.amountMinor,
-    required this.status,
-    required this.statusLabel,
-    required this.frequencyMeta,
-    required this.frequencyLabel,
-    required this.currentDueDate,
-    required this.nextDueDate,
-    this.defaultMethod,
-    this.icon,
-  });
+class _ErrorState extends StatelessWidget {
+  const _ErrorState();
 
-  final String id;
-  final String title;
-  final String amountLabel;
-  final int amountMinor;
-  final HiFiRecurringStatus status;
-  final String statusLabel;
-  final String frequencyMeta;
-  final String frequencyLabel;
-  final DateTime currentDueDate;
-  final DateTime nextDueDate;
-  final RecurringPaymentMethod? defaultMethod;
-  final IconData? icon;
-
-  _RecurringItem copyWith({
-    String? amountLabel,
-    int? amountMinor,
-    HiFiRecurringStatus? status,
-    String? statusLabel,
-    String? frequencyMeta,
-  }) {
-    return _RecurringItem(
-      id: id,
-      title: title,
-      amountLabel: amountLabel ?? this.amountLabel,
-      amountMinor: amountMinor ?? this.amountMinor,
-      status: status ?? this.status,
-      statusLabel: statusLabel ?? this.statusLabel,
-      frequencyMeta: frequencyMeta ?? this.frequencyMeta,
-      frequencyLabel: frequencyLabel,
-      currentDueDate: currentDueDate,
-      nextDueDate: nextDueDate,
-      defaultMethod: defaultMethod,
-      icon: icon,
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    return Padding(
+      padding: const EdgeInsets.only(top: 64),
+      child: Column(
+        children: <Widget>[
+          Icon(Icons.cloud_off_rounded, size: 48, color: AppColors.inkFade),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            strings.recurringLoadError,
+            style: AppTypography.body.copyWith(color: AppColors.ink),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            strings.checkConnectionAndTryAgain,
+            style: AppTypography.meta.copyWith(color: AppColors.inkSoft),
+          ),
+        ],
+      ),
     );
   }
 }

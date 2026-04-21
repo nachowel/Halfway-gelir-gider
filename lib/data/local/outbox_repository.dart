@@ -20,6 +20,7 @@ enum OutboxEntityType { transaction, category, recurringExpense }
 enum OutboxOperationType {
   createTransaction,
   updateTransaction,
+  deleteTransaction,
   createRecurringExpense,
   markRecurringPaid,
 }
@@ -86,6 +87,14 @@ class OutboxRepository {
 
   String createTransactionDedupeKey(String localTransactionId) {
     return '${OutboxEntityType.transaction.name}:${OutboxOperationType.createTransaction.name}:$localTransactionId';
+  }
+
+  String updateTransactionDedupeKey(String transactionId) {
+    return 'transaction:update:$transactionId';
+  }
+
+  String deleteTransactionDedupeKey(String transactionId) {
+    return 'transaction:delete:$transactionId';
   }
 
   Future<QueuedCreateTransaction> queueCreateTransaction({
@@ -184,6 +193,126 @@ class OutboxRepository {
       localTransactionId: localTransactionId,
       outboxEntryId: outboxEntryId,
     );
+  }
+
+  Future<String?> queueUpdateTransaction({
+    required String transactionId,
+    required EntryDraft draft,
+    required CategoryType categoryType,
+  }) async {
+    final DateTime now = DateTime.now().toUtc();
+    final String updateDedupeKey = updateTransactionDedupeKey(transactionId);
+    final String deleteDedupeKey = deleteTransactionDedupeKey(transactionId);
+
+    final domain_transaction.TransactionModel transaction =
+        domain_transaction.TransactionModel.fromPayload(
+          id: transactionId,
+          type: draft.type.dbValue,
+          occurredOn: draft.occurredOn,
+          amountMinor: draft.amountMinor,
+          currency: 'GBP',
+          categoryId: draft.categoryId,
+          categoryType: categoryType.dbValue,
+          paymentMethod: draft.paymentMethod.dbValue,
+          sourcePlatform: draft.sourcePlatform?.dbValue,
+          note: draft.note,
+          vendor: draft.vendor,
+          attachmentPath: draft.attachmentPath,
+        );
+
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'id': transaction.id,
+      'type': transaction.type.dbValue,
+      'occurred_on': transaction.occurredOn.iso8601Date,
+      'amount_minor': transaction.amount.value,
+      'currency': transaction.currency.code,
+      'category_id': transaction.categoryId,
+      'payment_method': transaction.paymentMethod.dbValue,
+      'source_platform': transaction.sourcePlatform?.dbValue,
+      'note': transaction.note,
+      'vendor': transaction.vendor,
+      'attachment_path': transaction.attachmentPath,
+    };
+
+    return _database.transaction(() async {
+      final OutboxEntry? openDelete = await _findOpenEntryByDedupeKey(
+        deleteDedupeKey,
+      );
+      if (openDelete != null) {
+        return null;
+      }
+
+      await _deleteOpenTransactionEntries(
+        transactionId: transactionId,
+        operations: const <OutboxOperationType>[
+          OutboxOperationType.updateTransaction,
+        ],
+      );
+
+      final String outboxEntryId = _generateUuid();
+      await _database
+          .into(_database.outboxEntries)
+          .insert(
+            OutboxEntriesCompanion.insert(
+              id: outboxEntryId,
+              entityType: OutboxEntityType.transaction.name,
+              entityId: transactionId,
+              operation: OutboxOperationType.updateTransaction.name,
+              dedupeKey: Value<String?>(updateDedupeKey),
+              payload: jsonEncode(payload),
+              status: Value<String>(OutboxEntryStatus.pending.name),
+              processingStartedAt: const Value<DateTime?>(null),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+      return outboxEntryId;
+    });
+  }
+
+  Future<String?> queueDeleteTransaction({
+    required String transactionId,
+  }) async {
+    final DateTime now = DateTime.now().toUtc();
+    final String dedupeKey = deleteTransactionDedupeKey(transactionId);
+
+    return _database.transaction(() async {
+      final OutboxEntry? openDelete = await _findOpenEntryByDedupeKey(
+        dedupeKey,
+      );
+      if (openDelete != null) {
+        return null;
+      }
+
+      await _deleteOpenTransactionEntries(
+        transactionId: transactionId,
+        operations: const <OutboxOperationType>[
+          OutboxOperationType.updateTransaction,
+        ],
+      );
+
+      final String outboxEntryId = _generateUuid();
+      await _database
+          .into(_database.outboxEntries)
+          .insert(
+            OutboxEntriesCompanion.insert(
+              id: outboxEntryId,
+              entityType: OutboxEntityType.transaction.name,
+              entityId: transactionId,
+              operation: OutboxOperationType.deleteTransaction.name,
+              dedupeKey: Value<String?>(dedupeKey),
+              payload: jsonEncode(<String, dynamic>{
+                'id': transactionId,
+                'deleted_at': now.toIso8601String(),
+              }),
+              status: Value<String>(OutboxEntryStatus.pending.name),
+              processingStartedAt: const Value<DateTime?>(null),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+      return outboxEntryId;
+    });
   }
 
   Future<LocalTransaction?> findLocalTransaction(String id) {
@@ -320,6 +449,42 @@ class OutboxRepository {
           updatedAt: Value<DateTime>(utcNow),
         ),
       );
+    });
+  }
+
+  Future<void> finalizeEntrySuccess({
+    required String entryId,
+    DateTime? completedAt,
+  }) async {
+    final DateTime utcNow = (completedAt ?? DateTime.now()).toUtc();
+    final OutboxEntry existing = await (_database.select(
+      _database.outboxEntries,
+    )..where((table) => table.id.equals(entryId))).getSingle();
+
+    await _database.transaction(() async {
+      await ((_database.update(
+        _database.outboxEntries,
+      ))..where((table) => table.id.equals(entryId))).write(
+        OutboxEntriesCompanion(
+          status: Value<String>(OutboxEntryStatus.completed.name),
+          processingStartedAt: const Value<DateTime?>(null),
+          nextRetryAt: const Value<DateTime?>(null),
+          lastError: const Value<String?>(null),
+          updatedAt: Value<DateTime>(utcNow),
+        ),
+      );
+
+      if (existing.entityType == OutboxEntityType.transaction.name) {
+        await ((_database.update(
+          _database.localTransactions,
+        ))..where((table) => table.id.equals(existing.entityId))).write(
+          LocalTransactionsCompanion(
+            syncStatus: Value<String>(LocalSyncStatus.synced.dbValue),
+            syncedAt: Value<DateTime>(utcNow),
+            updatedAt: Value<DateTime>(utcNow),
+          ),
+        );
+      }
     });
   }
 
@@ -478,6 +643,39 @@ class OutboxRepository {
         updatedAt: Value<DateTime>(utcNow),
       ),
     );
+  }
+
+  Future<OutboxEntry?> _findOpenEntryByDedupeKey(String dedupeKey) {
+    return (_database.select(_database.outboxEntries)..where((table) {
+          return table.dedupeKey.equals(dedupeKey) &
+              table.status.isNotValue(OutboxEntryStatus.completed.name);
+        }))
+        .getSingleOrNull();
+  }
+
+  Future<void> _deleteOpenTransactionEntries({
+    required String transactionId,
+    required List<OutboxOperationType> operations,
+  }) async {
+    if (operations.isEmpty) {
+      return;
+    }
+
+    await (_database.delete(_database.outboxEntries)..where((table) {
+          Expression<bool> operationFilter = table.operation.equals(
+            operations.first.name,
+          );
+          for (final OutboxOperationType operation in operations.skip(1)) {
+            operationFilter =
+                operationFilter | table.operation.equals(operation.name);
+          }
+
+          return table.entityType.equals(OutboxEntityType.transaction.name) &
+              table.entityId.equals(transactionId) &
+              operationFilter &
+              table.status.isNotValue(OutboxEntryStatus.completed.name);
+        }))
+        .go();
   }
 
   String _generateUuid() {

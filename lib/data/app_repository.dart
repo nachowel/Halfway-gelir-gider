@@ -3,16 +3,53 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/domain/category_model.dart' as domain_category;
+import '../core/domain/monthly_summary.dart' as domain_monthly_summary;
 import '../core/domain/recurring_model.dart' as domain_recurring;
+import '../core/domain/reserve_planner.dart' as domain_reserve_planner;
 import '../core/domain/transaction_model.dart' as domain_transaction;
 import '../core/domain/types.dart' as domain;
+import '../core/domain/weekly_summary.dart' as domain_weekly_summary;
+import '../features/expense_detail/domain/expense_detail_models.dart';
+import '../features/expense_detail/domain/expense_detail_service.dart';
+import '../features/income_detail/domain/income_detail_models.dart';
+import '../features/income_detail/domain/income_detail_service.dart';
+import '../features/net_profit_detail/domain/net_profit_detail_models.dart';
+import '../features/net_profit_detail/domain/net_profit_detail_service.dart';
+import '../l10n/app_localizations.dart';
+import 'local/outbox_repository.dart';
+import 'sync/conflict_policy.dart';
+import 'sync/sync_service.dart';
 import '../shared/hi_fi/hi_fi_icon_tile.dart';
 import 'app_models.dart';
 
 class GiderRepository {
-  GiderRepository(this._client);
+  GiderRepository(
+    this._client, {
+    OutboxRepository? outboxRepository,
+    ConnectivityProbe? connectivityProbe,
+    SyncService? syncService,
+    SyncConflictPolicy? syncConflictPolicy,
+    DateTime Function()? clock,
+  }) : _outboxRepository = outboxRepository,
+       _connectivityProbe = connectivityProbe,
+       _syncService = syncService,
+       _syncConflictPolicy = syncConflictPolicy ?? const SyncConflictPolicy(),
+       _clock = clock ?? DateTime.now;
 
   final SupabaseClient _client;
+  final OutboxRepository? _outboxRepository;
+  final ConnectivityProbe? _connectivityProbe;
+  final SyncService? _syncService;
+  final SyncConflictPolicy _syncConflictPolicy;
+  final DateTime Function() _clock;
+
+  static const int _dashboardRecentPreviewLimit = 4;
+  static const int _dashboardUpcomingPreviewLimit = 3;
+  static final ExpenseDetailService _expenseDetailService =
+      ExpenseDetailService();
+  static final IncomeDetailService _incomeDetailService = IncomeDetailService();
+  static final NetProfitDetailService _netProfitDetailService =
+      NetProfitDetailService();
 
   User get _user {
     final User? user = _client.auth.currentUser;
@@ -153,12 +190,10 @@ class GiderRepository {
         .select('user_id');
 
     if (updated.isEmpty) {
-      await _client
-          .from('business_settings')
-          .upsert(<String, dynamic>{
-            'user_id': user.id,
-            'business_name': trimmed,
-          }, onConflict: 'user_id');
+      await _client.from('business_settings').upsert(<String, dynamic>{
+        'user_id': user.id,
+        'business_name': trimmed,
+      }, onConflict: 'user_id');
     }
   }
 
@@ -331,6 +366,22 @@ class GiderRepository {
         .eq('user_id', _user.id);
   }
 
+  Future<TransactionData?> fetchTransaction({required String id}) async {
+    final Map<String, dynamic>? row = await _client
+        .from('transactions')
+        .select(
+          'id, type, occurred_on, amount_minor, currency, payment_method, source_platform, '
+          'note, vendor, attachment_path, recurring_expense_id, created_at, '
+          'category:categories(id, name, type)',
+        )
+        .eq('id', id)
+        .eq('user_id', _user.id)
+        .isFilter('deleted_at', null)
+        .maybeSingle();
+    if (row == null) return null;
+    return _mapTransaction(row);
+  }
+
   Future<List<TransactionData>> fetchTransactions({
     TransactionType? type,
     PaymentMethodType? paymentMethod,
@@ -369,34 +420,31 @@ class GiderRepository {
   }
 
   Future<void> createTransaction(EntryDraft draft) async {
-    final String categoryType = await _fetchCategoryTypeValue(draft.categoryId);
-    final domain_transaction.TransactionModel transaction =
-        domain_transaction.TransactionModel.fromPayload(
-          type: draft.type.dbValue,
-          occurredOn: draft.occurredOn,
-          amountMinor: draft.amountMinor,
-          currency: 'GBP',
-          categoryId: draft.categoryId,
-          categoryType: categoryType,
-          paymentMethod: draft.paymentMethod.dbValue,
-          sourcePlatform: draft.sourcePlatform?.dbValue,
-          note: draft.note,
-          vendor: draft.vendor,
-          attachmentPath: draft.attachmentPath,
+    if (!_hasTransactionSyncLifecycle) {
+      final String categoryType = await _fetchCategoryTypeValue(
+        draft.categoryId,
+      );
+      final domain_transaction.TransactionModel transaction =
+          _buildTransactionModel(draft: draft, categoryType: categoryType);
+      await _createTransactionRemote(transaction);
+      return;
+    }
+
+    final _ResolvedCategory category = await _fetchCategory(draft.categoryId);
+
+    final QueuedCreateTransaction queued = await _outboxRepository!
+        .queueCreateTransaction(
+          draft: draft,
+          categoryType: _categoryTypeFromDbValue(category.type),
+          categoryName: category.name,
         );
-    await _client.from('transactions').insert(<String, dynamic>{
-      'user_id': _user.id,
-      'type': transaction.type.dbValue,
-      'occurred_on': transaction.occurredOn.iso8601Date,
-      'amount_minor': transaction.amount.value,
-      'currency': transaction.currency.code,
-      'category_id': transaction.categoryId,
-      'payment_method': transaction.paymentMethod.dbValue,
-      'source_platform': transaction.sourcePlatform?.dbValue,
-      'note': transaction.note,
-      'vendor': transaction.vendor,
-      'attachment_path': transaction.attachmentPath,
-    });
+
+    if (!await _isOnline()) {
+      return;
+    }
+
+    await _syncService?.syncNow();
+    await _ensureOutboxEntryCompleted(queued.outboxEntryId);
   }
 
   Future<void> updateTransaction({
@@ -407,38 +455,45 @@ class GiderRepository {
       id,
       'transaction_id',
     );
-    final String categoryType = await _fetchCategoryTypeValue(draft.categoryId);
+
+    if (!_hasTransactionSyncLifecycle) {
+      final String categoryType = await _fetchCategoryTypeValue(
+        draft.categoryId,
+      );
+      final domain_transaction.TransactionModel transaction =
+          _buildTransactionModel(
+            id: transactionId,
+            draft: draft,
+            categoryType: categoryType,
+          );
+      await _updateTransactionRemote(transaction);
+      return;
+    }
+
+    final _ResolvedCategory category = await _fetchCategory(draft.categoryId);
     final domain_transaction.TransactionModel transaction =
-        domain_transaction.TransactionModel.fromPayload(
+        _buildTransactionModel(
           id: transactionId,
-          type: draft.type.dbValue,
-          occurredOn: draft.occurredOn,
-          amountMinor: draft.amountMinor,
-          currency: 'GBP',
-          categoryId: draft.categoryId,
-          categoryType: categoryType,
-          paymentMethod: draft.paymentMethod.dbValue,
-          sourcePlatform: draft.sourcePlatform?.dbValue,
-          note: draft.note,
-          vendor: draft.vendor,
-          attachmentPath: draft.attachmentPath,
+          draft: draft,
+          categoryType: category.type,
         );
-    await _client
-        .from('transactions')
-        .update(<String, dynamic>{
-          'type': transaction.type.dbValue,
-          'occurred_on': transaction.occurredOn.iso8601Date,
-          'amount_minor': transaction.amount.value,
-          'currency': transaction.currency.code,
-          'category_id': transaction.categoryId,
-          'payment_method': transaction.paymentMethod.dbValue,
-          'source_platform': transaction.sourcePlatform?.dbValue,
-          'note': transaction.note,
-          'vendor': transaction.vendor,
-          'attachment_path': transaction.attachmentPath,
-        })
-        .eq('id', transaction.id!)
-        .eq('user_id', _user.id);
+
+    if (await _isOnline()) {
+      try {
+        await _updateTransactionRemote(transaction);
+        return;
+      } catch (error, stackTrace) {
+        if (!_shouldQueueRemoteFailure(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      }
+    }
+
+    await _outboxRepository!.queueUpdateTransaction(
+      transactionId: transactionId,
+      draft: draft,
+      categoryType: _categoryTypeFromDbValue(category.type),
+    );
   }
 
   Future<void> deleteTransaction({required String id}) async {
@@ -446,93 +501,167 @@ class GiderRepository {
       id,
       'transaction_id',
     );
-    await _client
-        .from('transactions')
-        .update(<String, dynamic>{
-          'deleted_at': DateTime.now().toUtc().toIso8601String(),
-        })
-        .eq('id', transactionId)
-        .eq('user_id', _user.id);
+
+    if (!_hasTransactionSyncLifecycle) {
+      await _deleteTransactionRemote(transactionId);
+      return;
+    }
+
+    if (await _isOnline()) {
+      try {
+        await _deleteTransactionRemote(transactionId);
+        return;
+      } catch (error, stackTrace) {
+        if (!_shouldQueueRemoteFailure(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+      }
+    }
+
+    await _outboxRepository!.queueDeleteTransaction(
+      transactionId: transactionId,
+    );
   }
 
-  Future<DashboardSnapshot> fetchDashboardSnapshot() async {
+  Future<DashboardSnapshot> fetchDashboardSnapshot(
+    AppLocalizations strings,
+  ) async {
     final DateTime today = _businessToday();
-    final DateTimeRange week = _weekRange(today);
+    final domain_weekly_summary.WeeklySummaryRange week = domain_weekly_summary
+        .weeklySummaryRangeFor(today);
     final List<TransactionData> weekTransactions = await fetchTransactions(
       start: week.start,
       end: week.end,
     );
     final List<TransactionData> recentTransactions = await fetchTransactions();
-    final List<RecurringUiItem> recurring = await fetchRecurringUiItems();
-
-    int incomeMinor = 0;
-    int expenseMinor = 0;
-    int cashIncomeMinor = 0;
-    int cardIncomeMinor = 0;
-
-    for (final TransactionData transaction in weekTransactions) {
-      if (transaction.type == TransactionType.income) {
-        incomeMinor += transaction.amountMinor;
-        if (transaction.paymentMethod == PaymentMethodType.cash) {
-          cashIncomeMinor += transaction.amountMinor;
-        }
-        if (transaction.paymentMethod == PaymentMethodType.card) {
-          cardIncomeMinor += transaction.amountMinor;
-        }
-      } else {
-        expenseMinor += transaction.amountMinor;
-      }
-    }
-
-    final DateTimeRange previousWeek = DateTimeRange(
-      start: week.start.subtract(const Duration(days: 7)),
-      end: week.end.subtract(const Duration(days: 7)),
+    final List<RecurringExpenseData> recurringExpenses =
+        await fetchRecurringExpenses();
+    final List<RecurringUiItem> recurring = _buildRecurringUiItems(
+      records: recurringExpenses,
+      today: today,
+      strings: strings,
     );
+    final ReservePlannerSnapshot reservePlanner = _buildReservePlannerSnapshot(
+      records: recurringExpenses,
+      today: today,
+    );
+    final domain_weekly_summary.WeeklySummaryRange previousWeek = week.previous;
     final List<TransactionData> previousTransactions = await fetchTransactions(
       start: previousWeek.start,
       end: previousWeek.end,
     );
-    int previousNet = 0;
-    for (final TransactionData transaction in previousTransactions) {
-      previousNet += transaction.type == TransactionType.income
-          ? transaction.amountMinor
-          : -transaction.amountMinor;
-    }
+    final domain_weekly_summary.WeeklySummarySnapshot weeklySummary =
+        domain_weekly_summary.buildWeeklySummary(
+          today: today,
+          currentWeekTransactions: weekTransactions.map(
+            _toWeeklySummaryTransaction,
+          ),
+          previousWeekTransactions: previousTransactions.map(
+            _toWeeklySummaryTransaction,
+          ),
+        );
+    final List<TransactionData> sortedRecentTransactions =
+        List<TransactionData>.from(recentTransactions)
+          ..sort(_compareDashboardRecentTransactions);
+    final List<RecurringUiItem> sortedRecurring =
+        List<RecurringUiItem>.from(recurring)..sort(
+          (RecurringUiItem a, RecurringUiItem b) =>
+              a.record.nextDueOn.compareTo(b.record.nextDueOn),
+        );
 
-    final int currentNet = incomeMinor - expenseMinor;
     return DashboardSnapshot(
-      weekLabel:
-          '${_formatShortWeekday(week.start)} ${week.start.day} → '
-          '${_formatShortWeekday(week.end)} ${week.end.day} ${_formatUpperMonth(week.end)}',
-      incomeMinor: incomeMinor,
-      expenseMinor: expenseMinor,
-      cashIncomeMinor: cashIncomeMinor,
-      cardIncomeMinor: cardIncomeMinor,
-      netDeltaMinor: currentNet - previousNet,
-      recentTransactions: recentTransactions.take(5).toList(),
-      upcomingRecurring: recurring.take(5).toList(),
+      weekLabel: strings.dashboardWeekLabel(
+        weeklySummary.range.start,
+        weeklySummary.range.end,
+      ),
+      incomeMinor: weeklySummary.incomeMinor,
+      expenseMinor: weeklySummary.expenseMinor,
+      cashIncomeMinor: weeklySummary.cashIncomeMinor,
+      cardIncomeMinor: weeklySummary.cardIncomeMinor,
+      netDeltaMinor: weeklySummary.netDeltaMinor,
+      reservePlanner: reservePlanner,
+      recentTransactions: sortedRecentTransactions
+          .take(_dashboardRecentPreviewLimit)
+          .toList(),
+      upcomingRecurring: sortedRecurring
+          .take(_dashboardUpcomingPreviewLimit)
+          .toList(),
     );
   }
 
-  Future<ReportsSnapshot> fetchReportsSnapshot(DateTime month) async {
-    final DateTimeRange range = _monthRange(month);
+  Future<MonthlyReportsDataset> fetchMonthlyReportsDataset(
+    DateTime month, {
+    int trendMonthCount = 6,
+  }) async {
+    final DateTime selectedMonth = DateTime(month.year, month.month, 1);
+    final int resolvedTrendCount = trendMonthCount < 1 ? 1 : trendMonthCount;
+    final DateTime rangeStart = DateTime(
+      selectedMonth.year,
+      selectedMonth.month - (resolvedTrendCount - 1),
+      1,
+    );
+    final DateTime rangeEnd = DateTime(
+      selectedMonth.year,
+      selectedMonth.month + 1,
+      0,
+    );
+
+    final List<TransactionData> transactions = await fetchTransactions(
+      start: rangeStart,
+      end: rangeEnd,
+    );
+
+    final Map<String, IconData> expenseCategoryIcons = <String, IconData>{};
+    final Map<String, IconData> incomeCategoryIcons = <String, IconData>{};
+    for (final TransactionData transaction in transactions) {
+      final String categoryName = transaction.categoryName.trim();
+      if (categoryName.isEmpty) {
+        continue;
+      }
+
+      if (transaction.type == TransactionType.expense) {
+        expenseCategoryIcons.putIfAbsent(
+          categoryName,
+          () => _iconForCategoryName(categoryName, CategoryType.expense),
+        );
+        continue;
+      }
+
+      incomeCategoryIcons.putIfAbsent(
+        categoryName,
+        () => _iconForCategoryName(categoryName, CategoryType.income),
+      );
+    }
+
+    return MonthlyReportsDataset(
+      selectedMonth: selectedMonth,
+      trendMonthCount: resolvedTrendCount,
+      transactions: transactions,
+      expenseCategoryIcons: expenseCategoryIcons,
+      incomeCategoryIcons: incomeCategoryIcons,
+    );
+  }
+
+  Future<ReportsSnapshot> fetchReportsSnapshot(
+    DateTime month,
+    AppLocalizations strings,
+  ) async {
+    final domain_monthly_summary.MonthlySummaryRange range =
+        domain_monthly_summary.monthlySummaryRangeFor(month);
     final List<TransactionData> transactions = await fetchTransactions(
       start: range.start,
       end: range.end,
     );
 
-    int incomeMinor = 0;
-    int expenseMinor = 0;
-    final Map<String, int> expenseByCategory = <String, int>{};
+    final domain_monthly_summary.MonthlySummarySnapshot monthlySummary =
+        domain_monthly_summary.buildMonthlySummary(
+          month: month,
+          transactions: transactions.map(_toMonthlySummaryTransaction),
+        );
+
     final Map<String, IconData> icons = <String, IconData>{};
     for (final TransactionData transaction in transactions) {
-      if (transaction.type == TransactionType.income) {
-        incomeMinor += transaction.amountMinor;
-      } else {
-        expenseMinor += transaction.amountMinor;
-        expenseByCategory[transaction.categoryName] =
-            (expenseByCategory[transaction.categoryName] ?? 0) +
-            transaction.amountMinor;
+      if (transaction.type == TransactionType.expense) {
         icons.putIfAbsent(
           transaction.categoryName,
           () => _iconForCategoryName(
@@ -543,29 +672,96 @@ class GiderRepository {
       }
     }
 
-    final List<MapEntry<String, int>> sorted =
-        expenseByCategory.entries.toList()..sort(
-          (MapEntry<String, int> a, MapEntry<String, int> b) =>
-              b.value.compareTo(a.value),
-        );
-
-    final List<ReportBreakdownItem> breakdown = sorted.map((
-      MapEntry<String, int> entry,
-    ) {
-      return ReportBreakdownItem(
-        categoryName: entry.key,
-        amountMinor: entry.value,
-        fraction: expenseMinor == 0 ? 0 : entry.value / expenseMinor,
-        icon: icons[entry.key] ?? Icons.receipt_long_rounded,
-      );
-    }).toList();
+    final List<ReportBreakdownItem> breakdown = monthlySummary.categoryTotals
+        .map((domain_monthly_summary.MonthlyCategoryTotal entry) {
+          return ReportBreakdownItem(
+            categoryName: entry.categoryName,
+            amountMinor: entry.amountMinor,
+            fraction: monthlySummary.totalExpenseMinor == 0
+                ? 0
+                : entry.amountMinor / monthlySummary.totalExpenseMinor,
+            icon: icons[entry.categoryName] ?? Icons.receipt_long_rounded,
+          );
+        })
+        .toList();
 
     return ReportsSnapshot(
-      monthLabel: _turkishMonth(month.month),
+      monthLabel: strings.monthLong(month),
       yearLabel: month.year.toString(),
-      incomeMinor: incomeMinor,
-      expenseMinor: expenseMinor,
+      incomeMinor: monthlySummary.totalIncomeMinor,
+      expenseMinor: monthlySummary.totalExpenseMinor,
       breakdown: breakdown,
+    );
+  }
+
+  Future<IncomeDetailViewModel> fetchIncomeDetail(
+    IncomeDetailQuery query,
+    AppLocalizations strings,
+  ) async {
+    final DateTime today = _businessToday();
+    final IncomeDetailRange range = _incomeDetailService.resolveRange(
+      today: today,
+      query: query,
+      strings: strings,
+    );
+    final List<TransactionData> transactions = await fetchTransactions(
+      type: TransactionType.income,
+      start: range.start,
+      end: range.end,
+    );
+
+    return _incomeDetailService.buildViewModel(
+      query: query,
+      range: range,
+      transactions: transactions.map(_toIncomeDetailTransaction),
+      strings: strings,
+    );
+  }
+
+  Future<ExpenseDetailViewModel> fetchExpenseDetail(
+    ExpenseDetailQuery query,
+    AppLocalizations strings,
+  ) async {
+    final DateTime today = _businessToday();
+    final ExpenseDetailRange range = _expenseDetailService.resolveRange(
+      today: today,
+      query: query,
+      strings: strings,
+    );
+    final List<TransactionData> transactions = await fetchTransactions(
+      type: TransactionType.expense,
+      start: range.start,
+      end: range.end,
+    );
+
+    return _expenseDetailService.buildViewModel(
+      query: query,
+      range: range,
+      transactions: transactions.map(_toExpenseDetailTransaction),
+      strings: strings,
+    );
+  }
+
+  Future<NetProfitDetailViewModel> fetchNetProfitDetail(
+    NetProfitDetailQuery query,
+    AppLocalizations strings,
+  ) async {
+    final DateTime today = _businessToday();
+    final NetProfitDetailRange range = _netProfitDetailService.resolveRange(
+      today: today,
+      query: query,
+      strings: strings,
+    );
+    final List<TransactionData> transactions = await fetchTransactions(
+      start: range.start,
+      end: range.end,
+    );
+
+    return _netProfitDetailService.buildViewModel(
+      query: query,
+      range: range,
+      transactions: transactions.map(_toNetProfitDetailTransaction),
+      strings: strings,
     );
   }
 
@@ -633,7 +829,7 @@ class GiderRepository {
           nextDueOn: draft.nextDueOn,
           reminderDaysBefore: draft.reminderDaysBefore,
           defaultPaymentMethod: draft.defaultPaymentMethod?.dbValue,
-          reserveEnabled: false,
+          reserveEnabled: draft.reserveEnabled,
           isActive: true,
           note: draft.note,
         );
@@ -651,6 +847,54 @@ class GiderRepository {
       'is_active': recurring.isActive,
       'note': recurring.note,
     });
+  }
+
+  Future<void> updateRecurringExpense({
+    required String id,
+    required RecurringDraft draft,
+  }) async {
+    final String categoryType = await _fetchCategoryTypeValue(draft.categoryId);
+    final domain_recurring.RecurringModel recurring =
+        domain_recurring.RecurringModel.fromPayload(
+          id: id,
+          name: draft.name,
+          categoryId: draft.categoryId,
+          categoryType: categoryType,
+          amountMinor: draft.amountMinor,
+          currency: 'GBP',
+          frequency: draft.frequency.dbValue,
+          nextDueOn: draft.nextDueOn,
+          reminderDaysBefore: draft.reminderDaysBefore,
+          defaultPaymentMethod: draft.defaultPaymentMethod?.dbValue,
+          reserveEnabled: draft.reserveEnabled,
+          isActive: true,
+          note: draft.note,
+        );
+    await _client
+        .from('recurring_expenses')
+        .update(<String, dynamic>{
+          'name': recurring.name,
+          'category_id': recurring.categoryId,
+          'amount_minor': recurring.amount.value,
+          'currency': recurring.currency.code,
+          'frequency': recurring.frequency.dbValue,
+          'next_due_on': recurring.nextDueOn.iso8601Date,
+          'reminder_days_before': recurring.reminderDaysBefore,
+          'default_payment_method': recurring.defaultPaymentMethod?.dbValue,
+          'reserve_enabled': recurring.reserveEnabled,
+          'note': recurring.note,
+        })
+        .eq('id', id)
+        .eq('user_id', _user.id);
+  }
+
+  Future<void> deactivateRecurringExpense({required String id}) async {
+    final String recurringId = domain.requireTrimmedText(id, 'recurring_id');
+    await _client
+        .from('recurring_expenses')
+        .update(<String, dynamic>{'is_active': false})
+        .eq('id', recurringId)
+        .eq('user_id', _user.id);
   }
 
   Future<void> markRecurringPaid({
@@ -671,54 +915,16 @@ class GiderRepository {
     );
   }
 
-  Future<List<RecurringUiItem>> fetchRecurringUiItems() async {
+  Future<List<RecurringUiItem>> fetchRecurringUiItems(
+    AppLocalizations strings,
+  ) async {
     final DateTime today = _businessToday();
     final List<RecurringExpenseData> records = await fetchRecurringExpenses();
-    final List<RecurringUiItem> items =
-        records.map((RecurringExpenseData record) {
-          final int diffDays = record.nextDueOn.difference(today).inDays;
-          final RecurringUiStatus status = diffDays < 0
-              ? RecurringUiStatus.late
-              : diffDays <= record.reminderDaysBefore
-              ? RecurringUiStatus.soon
-              : RecurringUiStatus.later;
-          final String frequencyMeta = switch (status) {
-            RecurringUiStatus.late =>
-              'Every ${record.frequency.label.toLowerCase()} · was due ${_formatShortDate(record.nextDueOn)}',
-            RecurringUiStatus.soon =>
-              'Every ${record.frequency.label.toLowerCase()} · ${_formatShortWeekday(record.nextDueOn)} ${record.nextDueOn.day} ${_formatUpperMonth(record.nextDueOn)}',
-            RecurringUiStatus.later =>
-              'In $diffDays days · ${_formatShortWeekday(record.nextDueOn)} ${record.nextDueOn.day}',
-          };
-          final String statusLabel = switch (status) {
-            RecurringUiStatus.late => 'Late · ${diffDays.abs()}d',
-            RecurringUiStatus.soon =>
-              diffDays == 0 ? 'Today' : 'In $diffDays days',
-            RecurringUiStatus.later => 'Later',
-          };
-          return RecurringUiItem(
-            record: record,
-            status: status,
-            statusLabel: statusLabel,
-            frequencyMeta: frequencyMeta,
-            icon: _iconForCategoryName(
-              record.categoryName,
-              CategoryType.expense,
-            ),
-          );
-        }).toList()..sort((RecurringUiItem a, RecurringUiItem b) {
-          int weight(RecurringUiStatus status) => switch (status) {
-            RecurringUiStatus.late => 0,
-            RecurringUiStatus.soon => 1,
-            RecurringUiStatus.later => 2,
-          };
-          final int statusComparison = weight(
-            a.status,
-          ).compareTo(weight(b.status));
-          if (statusComparison != 0) return statusComparison;
-          return a.record.nextDueOn.compareTo(b.record.nextDueOn);
-        });
-    return items;
+    return _buildRecurringUiItems(
+      records: records,
+      today: today,
+      strings: strings,
+    );
   }
 
   Future<RecurringSummarySnapshot> fetchRecurringSummary(DateTime month) async {
@@ -747,6 +953,91 @@ class GiderRepository {
     return RecurringSummarySnapshot(
       totalMinor: totalMinor,
       paidMinor: paidMinor,
+    );
+  }
+
+  List<RecurringUiItem> _buildRecurringUiItems({
+    required List<RecurringExpenseData> records,
+    required DateTime today,
+    required AppLocalizations strings,
+  }) {
+    final List<RecurringUiItem> items =
+        records.map((RecurringExpenseData record) {
+          final int diffDays = record.nextDueOn.difference(today).inDays;
+          final RecurringUiStatus status = diffDays < 0
+              ? RecurringUiStatus.late
+              : diffDays <= record.reminderDaysBefore
+              ? RecurringUiStatus.soon
+              : RecurringUiStatus.later;
+          return RecurringUiItem(
+            record: record,
+            status: status,
+            statusLabel: strings.recurringStatusLabel(status, diffDays),
+            frequencyMeta: strings.recurringFrequencyMeta(
+              status,
+              record.frequency,
+              record.nextDueOn,
+              diffDays,
+            ),
+            icon: _iconForCategoryName(
+              record.categoryName,
+              CategoryType.expense,
+            ),
+          );
+        }).toList()..sort((RecurringUiItem a, RecurringUiItem b) {
+          int weight(RecurringUiStatus status) => switch (status) {
+            RecurringUiStatus.late => 0,
+            RecurringUiStatus.soon => 1,
+            RecurringUiStatus.later => 2,
+          };
+          final int statusComparison = weight(
+            a.status,
+          ).compareTo(weight(b.status));
+          if (statusComparison != 0) return statusComparison;
+          return a.record.nextDueOn.compareTo(b.record.nextDueOn);
+        });
+    return items;
+  }
+
+  ReservePlannerSnapshot _buildReservePlannerSnapshot({
+    required List<RecurringExpenseData> records,
+    required DateTime today,
+  }) {
+    final domain_reserve_planner.ReservePlannerComputation computation =
+        domain_reserve_planner.buildReservePlanner(
+          today: today,
+          recurringExpenses: records.map((RecurringExpenseData record) {
+            return domain_reserve_planner.ReservePlannerRecurringExpense(
+              id: record.id,
+              name: record.name,
+              amountMinor: record.amountMinor,
+              frequency: _toDomainRecurringFrequencyType(record.frequency),
+              nextDueOn: record.nextDueOn,
+              isActive: record.isActive,
+              reserveEnabled: record.reserveEnabled,
+            );
+          }),
+        );
+
+    return ReservePlannerSnapshot(
+      totalSuggestedWeeklyReserveMinor:
+          computation.totalSuggestedWeeklyReserveMinor,
+      eligibleItemCount: computation.items.length,
+      items: computation.items
+          .map(
+            (domain_reserve_planner.ReservePlannerSuggestionItem item) =>
+                ReservePlannerItem(
+                  id: item.id,
+                  name: item.name,
+                  amountMinor: item.amountMinor,
+                  frequency: _toUiRecurringFrequencyType(item.frequency),
+                  nextDueOn: item.nextDueOn,
+                  daysUntilDue: item.daysUntilDue,
+                  weeksUntilDue: item.weeksUntilDue,
+                  suggestedWeeklyReserveMinor: item.suggestedWeeklyReserveMinor,
+                ),
+          )
+          .toList(),
     );
   }
 
@@ -788,10 +1079,30 @@ class GiderRepository {
     );
   }
 
-  Future<String> _fetchCategoryTypeValue(String categoryId) async {
+  domain_weekly_summary.WeeklySummaryTransaction _toWeeklySummaryTransaction(
+    TransactionData transaction,
+  ) {
+    return domain_weekly_summary.WeeklySummaryTransaction(
+      type: _toDomainTransactionType(transaction.type),
+      paymentMethod: _toDomainPaymentMethodType(transaction.paymentMethod),
+      amountMinor: transaction.amountMinor,
+    );
+  }
+
+  domain_monthly_summary.MonthlySummaryTransaction _toMonthlySummaryTransaction(
+    TransactionData transaction,
+  ) {
+    return domain_monthly_summary.MonthlySummaryTransaction(
+      type: _toDomainTransactionType(transaction.type),
+      amountMinor: transaction.amountMinor,
+      categoryName: transaction.categoryName,
+    );
+  }
+
+  Future<_ResolvedCategory> _fetchCategory(String categoryId) async {
     final Map<String, dynamic>? row = await _client
         .from('categories')
-        .select('type')
+        .select('type, name')
         .eq('id', categoryId)
         .eq('user_id', _user.id)
         .maybeSingle();
@@ -803,21 +1114,173 @@ class GiderRepository {
       );
     }
 
+    return _ResolvedCategory(
+      type: row['type'] as String,
+      name: row['name'] as String,
+    );
+  }
+
+  Future<String> _fetchCategoryTypeValue(String categoryId) async {
+    final Map<String, dynamic>? row = await _client
+        .from('categories')
+        .select('type')
+        .eq('id', categoryId)
+        .eq('user_id', _user.id)
+        .maybeSingle();
+
+    if (row == null) {
+      throw domain.DomainValidationException(
+        code: 'transaction.category_not_found',
+        message: 'The selected category no longer exists.',
+      );
+    }
+
     return row['type'] as String;
+  }
+
+  bool get _hasTransactionSyncLifecycle =>
+      _outboxRepository != null && _connectivityProbe != null;
+
+  Future<bool> _isOnline() async {
+    final ConnectivityProbe? probe = _connectivityProbe;
+    if (probe == null) {
+      return true;
+    }
+    return probe.isOnline();
+  }
+
+  bool _shouldQueueRemoteFailure(Object error) {
+    if (error is AuthException) {
+      return false;
+    }
+
+    final SyncFailureDecision decision = _syncConflictPolicy.classify(error);
+    return decision.type == SyncFailureType.retryable;
+  }
+
+  Future<void> _ensureOutboxEntryCompleted(String entryId) async {
+    final OutboxRepository? outboxRepository = _outboxRepository;
+    if (outboxRepository == null) {
+      return;
+    }
+
+    final entry = await outboxRepository.findOutboxEntry(entryId);
+    if (entry == null) {
+      throw Exception('Transaction sync entry was not found.');
+    }
+
+    if (entry.status == OutboxEntryStatus.completed.name) {
+      return;
+    }
+
+    if (entry.lastError == 'Authentication required') {
+      throw const AuthException('Authentication required');
+    }
+
+    throw Exception(
+      entry.lastError ??
+          (entry.nextRetryAt != null
+              ? 'Transaction sync is still pending.'
+              : 'Transaction sync did not complete.'),
+    );
+  }
+
+  domain_transaction.TransactionModel _buildTransactionModel({
+    String? id,
+    required EntryDraft draft,
+    required String categoryType,
+  }) {
+    return domain_transaction.TransactionModel.fromPayload(
+      id: id,
+      type: draft.type.dbValue,
+      occurredOn: draft.occurredOn,
+      amountMinor: draft.amountMinor,
+      currency: 'GBP',
+      categoryId: draft.categoryId,
+      categoryType: categoryType,
+      paymentMethod: draft.paymentMethod.dbValue,
+      sourcePlatform: draft.sourcePlatform?.dbValue,
+      note: draft.note,
+      vendor: draft.vendor,
+      attachmentPath: draft.attachmentPath,
+    );
+  }
+
+  Future<void> _createTransactionRemote(
+    domain_transaction.TransactionModel transaction,
+  ) async {
+    final bool isIncome = transaction.type == domain.TransactionType.income;
+    if (isIncome) {
+      debugPrint('INCOME_SUPABASE_INSERT_STARTED');
+    }
+
+    try {
+      await _client.from('transactions').insert(<String, dynamic>{
+        'user_id': _user.id,
+        'type': transaction.type.dbValue,
+        'occurred_on': transaction.occurredOn.iso8601Date,
+        'amount_minor': transaction.amount.value,
+        'currency': transaction.currency.code,
+        'category_id': transaction.categoryId,
+        'payment_method': transaction.paymentMethod.dbValue,
+        'source_platform': transaction.sourcePlatform?.dbValue,
+        'note': transaction.note,
+        'vendor': transaction.vendor,
+        'attachment_path': transaction.attachmentPath,
+      });
+
+      if (isIncome) {
+        debugPrint('INCOME_SUPABASE_INSERT_SUCCESS');
+      }
+    } catch (error) {
+      if (isIncome) {
+        debugPrint('INCOME_SUPABASE_INSERT_ERROR: $error');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _updateTransactionRemote(
+    domain_transaction.TransactionModel transaction,
+  ) {
+    return _client
+        .from('transactions')
+        .update(<String, dynamic>{
+          'type': transaction.type.dbValue,
+          'occurred_on': transaction.occurredOn.iso8601Date,
+          'amount_minor': transaction.amount.value,
+          'currency': transaction.currency.code,
+          'category_id': transaction.categoryId,
+          'payment_method': transaction.paymentMethod.dbValue,
+          'source_platform': transaction.sourcePlatform?.dbValue,
+          'note': transaction.note,
+          'vendor': transaction.vendor,
+          'attachment_path': transaction.attachmentPath,
+        })
+        .eq('id', transaction.id!)
+        .eq('user_id', _user.id);
+  }
+
+  Future<void> _deleteTransactionRemote(String transactionId) {
+    return _client
+        .from('transactions')
+        .update(<String, dynamic>{
+          'deleted_at': _clock().toUtc().toIso8601String(),
+        })
+        .eq('id', transactionId)
+        .eq('user_id', _user.id);
+  }
+
+  CategoryType _categoryTypeFromDbValue(String value) {
+    return switch (value) {
+      'income' => CategoryType.income,
+      _ => CategoryType.expense,
+    };
   }
 
   DateTime _businessToday() {
     final DateTime now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
-  }
-
-  DateTimeRange _weekRange(DateTime date) {
-    final DateTime normalized = DateTime(date.year, date.month, date.day);
-    final DateTime start = normalized.subtract(
-      Duration(days: normalized.weekday - 1),
-    );
-    final DateTime end = start.add(const Duration(days: 6));
-    return DateTimeRange(start: start, end: end);
   }
 
   DateTimeRange _monthRange(DateTime date) {
@@ -836,71 +1299,15 @@ class GiderRepository {
     return trimmed;
   }
 
-  String _formatShortWeekday(DateTime date) {
-    const List<String> weekdays = <String>[
-      'MON',
-      'TUE',
-      'WED',
-      'THU',
-      'FRI',
-      'SAT',
-      'SUN',
-    ];
-    return weekdays[date.weekday - 1];
-  }
-
-  String _formatUpperMonth(DateTime date) {
-    const List<String> months = <String>[
-      'JAN',
-      'FEB',
-      'MAR',
-      'APR',
-      'MAY',
-      'JUN',
-      'JUL',
-      'AUG',
-      'SEP',
-      'OCT',
-      'NOV',
-      'DEC',
-    ];
-    return months[date.month - 1];
-  }
-
-  String _formatShortDate(DateTime date) {
-    const List<String> months = <String>[
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${date.day} ${months[date.month - 1]}';
-  }
-
-  String _turkishMonth(int month) {
-    const List<String> months = <String>[
-      'Ocak',
-      'Subat',
-      'Mart',
-      'Nisan',
-      'Mayis',
-      'Haziran',
-      'Temmuz',
-      'Agustos',
-      'Eylul',
-      'Ekim',
-      'Kasim',
-      'Aralik',
-    ];
-    return months[month - 1];
+  int _compareDashboardRecentTransactions(
+    TransactionData a,
+    TransactionData b,
+  ) {
+    final int occurredOnComparison = b.occurredOn.compareTo(a.occurredOn);
+    if (occurredOnComparison != 0) {
+      return occurredOnComparison;
+    }
+    return b.createdAt.compareTo(a.createdAt);
   }
 
   _SeedCategory? _seedForName(CategoryType type, String name) {
@@ -927,6 +1334,9 @@ class GiderRepository {
         domain.TransactionType.expense => TransactionType.expense,
       };
 
+  domain.TransactionType _toDomainTransactionType(TransactionType type) =>
+      domain.TransactionTypeX.fromDbValue(type.dbValue);
+
   PaymentMethodType _toUiPaymentMethodType(domain.PaymentMethodType type) =>
       switch (type) {
         domain.PaymentMethodType.cash => PaymentMethodType.cash,
@@ -934,6 +1344,9 @@ class GiderRepository {
         domain.PaymentMethodType.bankTransfer => PaymentMethodType.bankTransfer,
         domain.PaymentMethodType.other => PaymentMethodType.other,
       };
+
+  domain.PaymentMethodType _toDomainPaymentMethodType(PaymentMethodType type) =>
+      domain.PaymentMethodTypeX.fromDbValue(type.dbValue);
 
   SourcePlatformType _toUiSourcePlatformType(domain.SourcePlatformType type) =>
       switch (type) {
@@ -951,6 +1364,10 @@ class GiderRepository {
     domain.RecurringFrequencyType.quarterly => RecurringFrequencyType.quarterly,
     domain.RecurringFrequencyType.yearly => RecurringFrequencyType.yearly,
   };
+
+  domain.RecurringFrequencyType _toDomainRecurringFrequencyType(
+    RecurringFrequencyType type,
+  ) => domain.RecurringFrequencyTypeX.fromDbValue(type.dbValue);
 
   IconData _iconForCategoryName(String name, CategoryType type) {
     return _seedForName(type, name)?.icon ??
@@ -993,6 +1410,50 @@ class GiderRepository {
         return Icons.receipt_long_rounded;
     }
   }
+
+  IncomeDetailTransaction _toIncomeDetailTransaction(
+    TransactionData transaction,
+  ) {
+    return IncomeDetailTransaction(
+      occurredOn: transaction.occurredOn,
+      amountMinor: transaction.amountMinor,
+      paymentMethod: switch (transaction.paymentMethod) {
+        PaymentMethodType.cash => IncomeDetailPaymentMethod.cash,
+        PaymentMethodType.card => IncomeDetailPaymentMethod.card,
+        PaymentMethodType.bankTransfer => IncomeDetailPaymentMethod.other,
+        PaymentMethodType.other => IncomeDetailPaymentMethod.other,
+      },
+    );
+  }
+
+  ExpenseDetailTransaction _toExpenseDetailTransaction(
+    TransactionData transaction,
+  ) {
+    return ExpenseDetailTransaction(
+      occurredOn: transaction.occurredOn,
+      amountMinor: transaction.amountMinor,
+      categoryName: transaction.categoryName,
+      paymentMethod: switch (transaction.paymentMethod) {
+        PaymentMethodType.cash => ExpenseDetailPaymentMethod.cash,
+        PaymentMethodType.card => ExpenseDetailPaymentMethod.card,
+        PaymentMethodType.bankTransfer => ExpenseDetailPaymentMethod.other,
+        PaymentMethodType.other => ExpenseDetailPaymentMethod.other,
+      },
+    );
+  }
+
+  NetProfitDetailTransaction _toNetProfitDetailTransaction(
+    TransactionData transaction,
+  ) {
+    return NetProfitDetailTransaction(
+      occurredOn: transaction.occurredOn,
+      amountMinor: transaction.amountMinor,
+      type: switch (transaction.type) {
+        TransactionType.income => NetProfitTransactionType.income,
+        TransactionType.expense => NetProfitTransactionType.expense,
+      },
+    );
+  }
 }
 
 class _SeedCategory {
@@ -1017,4 +1478,11 @@ class _SeedCategory {
     Icons.local_shipping_outlined => 'local_shipping_outlined',
     _ => 'receipt_long_rounded',
   };
+}
+
+class _ResolvedCategory {
+  const _ResolvedCategory({required this.type, required this.name});
+
+  final String type;
+  final String name;
 }

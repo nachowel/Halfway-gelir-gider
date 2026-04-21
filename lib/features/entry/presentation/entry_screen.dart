@@ -1,9 +1,8 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/providers/app_providers.dart';
@@ -11,11 +10,13 @@ import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/domain/types.dart' show DomainValidationException;
 import '../../../data/app_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_attachment_tile.dart';
 import '../../../shared/hi_fi/hi_fi_filter_chip.dart';
 import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
 import '../../../shared/hi_fi/hi_fi_screen_background.dart';
 import '../../../shared/layout/mobile_scaffold.dart';
+import '../../../shared/overlay/app_overlay.dart';
 import '../../../shared/widgets/app_amount_field.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -38,34 +39,22 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   late final TextEditingController _amountController;
   late final TextEditingController _vendorController;
   late final TextEditingController _noteController;
+  late final ScrollController _scrollController;
 
   late DateTime _occurredOn;
   String? _selectedCategoryId;
-  String? _selectedPaymentMethod;
-  String? _selectedSourcePlatform;
+  PaymentMethodType? _selectedPaymentMethod;
+  SourcePlatformType? _selectedSourcePlatform;
   String? _attachmentLabel;
   bool _didAttemptSubmit = false;
   bool _saving = false;
+  bool _deleting = false;
+  bool _preloading = false;
+  bool _preloadFailed = false;
 
   String? _amountError;
   String? _categoryError;
   String? _paymentError;
-
-  final List<String> _paymentMethods = const <String>[
-    'Cash',
-    'Card',
-    'Bank transfer',
-    'Other',
-  ];
-
-  final List<String> _sourcePlatforms = const <String>[
-    'Direct',
-    'Uber',
-    'Just Eat',
-    'Other',
-  ];
-
-  static const Set<String> _settlementPlatforms = <String>{'Uber', 'Just Eat'};
 
   bool get _isExpense => widget.kind == EntryKind.expense;
 
@@ -73,31 +62,38 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
 
   bool get _isSettlementSelected =>
       _selectedSourcePlatform != null &&
-      _settlementPlatforms.contains(_selectedSourcePlatform);
+      _selectedSourcePlatform != SourcePlatformType.direct &&
+      _selectedSourcePlatform != SourcePlatformType.other;
 
   AsyncValue<List<CategoryData>> get _categoriesAsync => _isExpense
       ? ref.watch(expenseCategoriesProvider)
       : ref.watch(incomeCategoriesProvider);
 
   String get _screenTitle {
+    final AppLocalizations strings = context.strings;
     if (_isEditing) {
-      return _isExpense ? 'Gideri duzenle' : 'Geliri duzenle';
+      return _isExpense ? strings.editExpenseTitle : strings.editIncomeTitle;
     }
-    return _isExpense ? 'Gider ekle' : 'Gelir ekle';
+    return _isExpense ? strings.addExpenseTitle : strings.addIncomeTitle;
   }
 
-  String get _pillLabel => _isExpense ? 'Gider' : 'Gelir';
+  String get _pillLabel =>
+      _isExpense ? context.strings.expense : context.strings.income;
 
   String get _saveLabel {
+    final AppLocalizations strings = context.strings;
     if (_isEditing) {
-      return 'Degisiklikleri kaydet';
+      return strings.saveChanges;
     }
-    return _isExpense ? 'Gideri kaydet' : 'Geliri kaydet';
+    return _isExpense ? strings.saveExpense : strings.saveIncome;
   }
 
   String get _dateSubtitle {
-    final String suffix = _isEditing ? 'duzenleniyor' : 'yeni kayit';
-    return '${_formatHeaderDate(_occurredOn)} - $suffix';
+    final AppLocalizations strings = context.strings;
+    final String dateLabel = _formatHeaderDate(_occurredOn);
+    return _isEditing
+        ? strings.editingHeaderSubtitle(dateLabel)
+        : strings.newEntryHeaderSubtitle(dateLabel);
   }
 
   bool get _isToday {
@@ -113,9 +109,65 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     _amountController = TextEditingController();
     _vendorController = TextEditingController();
     _noteController = TextEditingController();
+    _scrollController = ScrollController(keepScrollOffset: false);
     _occurredOn = DateTime.now();
-    _selectedPaymentMethod = 'Card';
-    _selectedSourcePlatform = _isExpense ? null : 'Direct';
+    _selectedPaymentMethod = PaymentMethodType.card;
+    _selectedSourcePlatform = _isExpense ? null : SourcePlatformType.direct;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) {
+        return;
+      }
+      _scrollController.jumpTo(0);
+    });
+    if (widget.transactionId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadEditData());
+    }
+  }
+
+  Future<void> _loadEditData() async {
+    if (!mounted) return;
+    setState(() => _preloading = true);
+    try {
+      final TransactionData? t = await ref
+          .read(giderRepositoryProvider)
+          .fetchTransaction(id: widget.transactionId!);
+      if (!mounted || t == null) return;
+      setState(() {
+        _amountController.text = (t.amountMinor / 100).toStringAsFixed(2);
+        _occurredOn = t.occurredOn;
+        _selectedCategoryId = t.categoryId;
+        _selectedPaymentMethod = t.paymentMethod;
+        _selectedSourcePlatform =
+            t.sourcePlatform ?? (_isExpense ? null : SourcePlatformType.direct);
+        _vendorController.text = t.vendor ?? '';
+        _noteController.text = t.note ?? '';
+      });
+    } catch (_) {
+      if (mounted) setState(() => _preloadFailed = true);
+    } finally {
+      if (mounted) setState(() => _preloading = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    if (_deleting || _saving) return;
+    setState(() => _deleting = true);
+    try {
+      await ref
+          .read(giderRepositoryProvider)
+          .deleteTransaction(id: widget.transactionId!);
+      for (final filter in TransactionsFilter.values) {
+        ref.invalidate(transactionsProvider(filter));
+      }
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    } on DomainValidationException catch (error) {
+      _showErrorSnack(error.message);
+    } catch (error) {
+      _showErrorSnack(context.strings.couldNotDeleteEntry(error.toString()));
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
   }
 
   @override
@@ -123,11 +175,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     _amountController.dispose();
     _vendorController.dispose();
     _noteController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   String _formatHeaderDate(DateTime date) {
-    return DateFormat('EEE d MMM').format(date);
+    return context.strings.weekdayShortDate(date);
   }
 
   double? _parseAmount() {
@@ -138,7 +191,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   Future<void> _pickDate() async {
     FocusScope.of(context).unfocus();
     final DateTime today = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+    final DateTime? picked = await showAppDatePicker(
       context: context,
       initialDate: _occurredOn,
       firstDate: DateTime(2025, 1, 1),
@@ -171,7 +224,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     if (categories.isEmpty) {
       return;
     }
-    final CategoryData? selected = await showModalBottomSheet<CategoryData>(
+    final CategoryData? selected = await showAppModalBottomSheet<CategoryData>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -206,15 +259,17 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('CATEGORY', style: AppTypography.eye),
+                      child: Text(
+                        sheetContext.strings.chooseCategorySheetTitle,
+                        style: AppTypography.eye,
+                      ),
                     ),
                   ),
                   for (final CategoryData category in categories)
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () =>
-                            Navigator.of(sheetContext).pop(category),
+                        onTap: () => Navigator.of(sheetContext).pop(category),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
                           child: Row(
@@ -277,12 +332,21 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
 
   void _showRecurringHandoff() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Recurring handoff stays visual in this batch. Persistence comes later.',
-        ),
-      ),
+      SnackBar(content: Text(context.strings.recurringHandoffVisualOnly)),
     );
+  }
+
+  void _refreshAfterSave() {
+    ref.invalidate(dashboardSnapshotProvider);
+    ref.invalidate(reportsSnapshotProvider);
+    ref.invalidate(recurringItemsProvider);
+    ref.invalidate(recurringSummaryProvider);
+    ref.invalidate(incomeCategoriesProvider);
+    ref.invalidate(expenseCategoriesProvider);
+    for (final TransactionsFilter filter in TransactionsFilter.values) {
+      ref.invalidate(transactionsProvider(filter));
+    }
+    ref.read(refreshKeyProvider.notifier).state++;
   }
 
   Future<void> _submit() async {
@@ -294,13 +358,13 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     setState(() {
       _didAttemptSubmit = true;
       _amountError = amount == null || amount <= 0
-          ? 'Enter an amount greater than £0.00.'
+          ? context.strings.enterAmountGreaterThanZeroPence
           : null;
       _categoryError = _selectedCategoryId == null
-          ? 'Choose a category.'
+          ? context.strings.chooseCategory
           : null;
       _paymentError = _selectedPaymentMethod == null
-          ? 'Choose a payment method.'
+          ? context.strings.choosePaymentMethod
           : null;
     });
 
@@ -315,16 +379,17 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       occurredOn: _occurredOn,
       amountMinor: (amount! * 100).round(),
       categoryId: _selectedCategoryId!,
-      paymentMethod: _paymentMethodFromLabel(_selectedPaymentMethod!),
-      sourcePlatform: _isExpense
-          ? null
-          : _sourcePlatformFromLabel(_selectedSourcePlatform),
+      paymentMethod: _selectedPaymentMethod!,
+      sourcePlatform: _isExpense ? null : _selectedSourcePlatform,
       vendor: _isExpense ? _trimToNull(_vendorController.text) : null,
       note: _trimToNull(_noteController.text),
     );
 
     setState(() => _saving = true);
     try {
+      if (!_isExpense) {
+        debugPrint('INCOME_SAVE_STARTED');
+      }
       if (_isEditing) {
         await ref
             .read(giderRepositoryProvider)
@@ -332,17 +397,32 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       } else {
         await ref.read(giderRepositoryProvider).createTransaction(draft);
       }
-      ref.read(refreshKeyProvider.notifier).state++;
+      _refreshAfterSave();
+      if (!_isExpense) {
+        debugPrint('INCOME_SAVE_SUCCESS');
+      }
       if (!mounted) {
         return;
       }
-      context.pop();
+      Navigator.of(context).maybePop();
     } on DomainValidationException catch (error) {
+      if (!_isExpense) {
+        debugPrint('INCOME_SAVE_ERROR');
+        debugPrint('INCOME_SAVE_ERROR_DETAILS: ${error.message}');
+      }
       _showErrorSnack(error.message);
     } on AuthException catch (error) {
+      if (!_isExpense) {
+        debugPrint('INCOME_SAVE_ERROR');
+        debugPrint('INCOME_SAVE_ERROR_DETAILS: ${error.message}');
+      }
       _showErrorSnack(error.message);
     } catch (error) {
-      _showErrorSnack('Could not save entry: $error');
+      if (!_isExpense) {
+        debugPrint('INCOME_SAVE_ERROR');
+        debugPrint('INCOME_SAVE_ERROR_DETAILS: $error');
+      }
+      _showErrorSnack(context.strings.couldNotSaveEntry(error.toString()));
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -363,10 +443,11 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     );
   }
 
-  void _handleSourcePlatformSelected(String value) {
+  void _handleSourcePlatformSelected(SourcePlatformType value) {
     setState(() {
       _selectedSourcePlatform = value;
-      if (_settlementPlatforms.contains(value)) {
+      if (value == SourcePlatformType.uber ||
+          value == SourcePlatformType.justEat) {
         _occurredOn = _sundayOf(_occurredOn);
       }
     });
@@ -383,34 +464,6 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  PaymentMethodType _paymentMethodFromLabel(String label) {
-    switch (label) {
-      case 'Cash':
-        return PaymentMethodType.cash;
-      case 'Card':
-        return PaymentMethodType.card;
-      case 'Bank transfer':
-        return PaymentMethodType.bankTransfer;
-      default:
-        return PaymentMethodType.other;
-    }
-  }
-
-  SourcePlatformType? _sourcePlatformFromLabel(String? label) {
-    switch (label) {
-      case 'Direct':
-        return SourcePlatformType.direct;
-      case 'Uber':
-        return SourcePlatformType.uber;
-      case 'Just Eat':
-        return SourcePlatformType.justEat;
-      case 'Other':
-        return SourcePlatformType.other;
-      default:
-        return null;
-    }
-  }
-
   void _handleAmountChanged(String _) {
     if (!_didAttemptSubmit) {
       return;
@@ -418,13 +471,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final double? amount = _parseAmount();
     setState(() {
       _amountError = amount == null || amount <= 0
-          ? 'Enter an amount greater than £0.00.'
+          ? context.strings.enterAmountGreaterThanZeroPence
           : null;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     final MediaQueryData mq = MediaQuery.of(context);
     final double bottomInset = mq.viewInsets.bottom;
     final AsyncValue<List<CategoryData>> categoriesAsync = _categoriesAsync;
@@ -457,6 +511,11 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 Positioned.fill(
                   child: MobileScaffold(
                     child: SingleChildScrollView(
+                      key: const ValueKey<String>('entry-scroll-view'),
+                      controller: _scrollController,
+                      primary: false,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: EdgeInsets.fromLTRB(
                         AppSpacing.screenSide,
                         AppSpacing.xs,
@@ -478,7 +537,10 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                             tone: _isExpense
                                 ? AppAmountFieldTone.expense
                                 : AppAmountFieldTone.income,
-                            autofocus: true,
+                            // Web autofocus can force the scroll view to jump
+                            // near the bottom on first paint, which makes the
+                            // form look blank.
+                            autofocus: !kIsWeb,
                             errorText: _amountError,
                             onChanged: _handleAmountChanged,
                           ),
@@ -490,7 +552,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                               categoriesErrorMessage: categoriesErrorMessage,
                               selectedCategoryId: _selectedCategoryId,
                               selectedPaymentMethod: _selectedPaymentMethod,
-                              paymentMethods: _paymentMethods,
+                              paymentMethods: PaymentMethodType.values,
                               categoryError: _categoryError,
                               paymentError: _paymentError,
                               vendorController: _vendorController,
@@ -504,7 +566,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                   _categoryError = null;
                                 });
                               },
-                              onPaymentSelected: (String value) {
+                              onPaymentSelected: (PaymentMethodType value) {
                                 setState(() {
                                   _selectedPaymentMethod = value;
                                   _paymentError = null;
@@ -516,9 +578,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                           else
                             _IncomeFields(
                               selectedSourcePlatform: _selectedSourcePlatform,
-                              sourcePlatforms: _sourcePlatforms,
+                              sourcePlatforms: SourcePlatformType.values,
                               selectedPaymentMethod: _selectedPaymentMethod,
-                              paymentMethods: _paymentMethods,
+                              paymentMethods: PaymentMethodType.values,
                               selectedCategoryName: selectedCategoryName,
                               categoryError: _categoryError,
                               paymentError: _paymentError,
@@ -531,7 +593,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                               categoriesErrorMessage: categoriesErrorMessage,
                               onSourcePlatformSelected:
                                   _handleSourcePlatformSelected,
-                              onPaymentSelected: (String value) {
+                              onPaymentSelected: (PaymentMethodType value) {
                                 setState(() {
                                   _selectedPaymentMethod = value;
                                   _paymentError = null;
@@ -546,6 +608,40 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     ),
                   ),
                 ),
+                if (_preloading)
+                  const Positioned.fill(
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                if (_preloadFailed)
+                  Positioned.fill(
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              Icons.cloud_off_rounded,
+                              size: 40,
+                              color: AppColors.inkFade,
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              strings.couldNotLoadEntry,
+                              style: AppTypography.body,
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              strings.checkConnectionAndTryAgain,
+                              style: AppTypography.meta,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 0,
                   right: 0,
@@ -580,17 +676,23 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       AppSpacing.screenSide,
                       mathMax(bottomInset, mq.padding.bottom) + 14,
                     ),
-                    child: MobileScaffold(
-                      child: _StickySaveBar(
-                        saveLabel: _saveLabel,
-                        saveVariant: _isExpense
-                            ? AppButtonVariant.primary
-                            : AppButtonVariant.income,
-                        onSave: _submit,
-                        secondaryLabel: _isExpense ? 'Recurring' : null,
-                        onSecondaryTap: _isExpense
-                            ? _showRecurringHandoff
-                            : null,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 430),
+                        child: _StickySaveBar(
+                          saveLabel: _saveLabel,
+                          saveVariant: _isExpense
+                              ? AppButtonVariant.primary
+                              : AppButtonVariant.income,
+                          onSave: _saving || _preloading ? null : _submit,
+                          secondaryLabel: _isEditing
+                              ? strings.delete
+                              : (_isExpense ? strings.recurring : null),
+                          onSecondaryTap: _isEditing
+                              ? (_deleting ? null : _delete)
+                              : (_isExpense ? _showRecurringHandoff : null),
+                          secondaryDestructive: _isEditing,
+                        ),
                       ),
                     ),
                   ),
@@ -621,6 +723,7 @@ class _EntryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -628,7 +731,7 @@ class _EntryHeader extends StatelessWidget {
           children: <Widget>[
             InkWell(
               borderRadius: BorderRadius.circular(999),
-              onTap: () => context.pop(),
+              onTap: () => Navigator.of(context).maybePop(),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                 child: Row(
@@ -641,7 +744,7 @@ class _EntryHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 2),
                     Text(
-                      'Geri',
+                      strings.back,
                       style: AppTypography.bodySoft.copyWith(fontSize: 13),
                     ),
                   ],
@@ -674,9 +777,8 @@ class _EntryHeader extends StatelessWidget {
           text: TextSpan(
             style: AppTypography.h1,
             children: <InlineSpan>[
-              TextSpan(text: isExpense ? 'Gider ' : 'Gelir '),
               TextSpan(
-                text: isExpense ? 'ekle' : 'ekle',
+                text: title,
                 style: AppTypography.h1.copyWith(
                   color: AppColors.brand,
                   fontStyle: FontStyle.italic,
@@ -717,8 +819,8 @@ class _ExpenseFields extends StatelessWidget {
   final bool categoriesLoading;
   final String? categoriesErrorMessage;
   final String? selectedCategoryId;
-  final String? selectedPaymentMethod;
-  final List<String> paymentMethods;
+  final PaymentMethodType? selectedPaymentMethod;
+  final List<PaymentMethodType> paymentMethods;
   final String? categoryError;
   final String? paymentError;
   final TextEditingController vendorController;
@@ -727,19 +829,20 @@ class _ExpenseFields extends StatelessWidget {
   final bool showTodayPill;
   final String? attachmentLabel;
   final ValueChanged<CategoryData> onCategorySelected;
-  final ValueChanged<String> onPaymentSelected;
+  final ValueChanged<PaymentMethodType> onPaymentSelected;
   final VoidCallback onDateTap;
   final VoidCallback onAttachmentTap;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     final String? sectionHelper;
     if (categoriesLoading && categories.isEmpty) {
-      sectionHelper = 'Loading categories...';
+      sectionHelper = strings.loadingCategories;
     } else if (categoriesErrorMessage != null) {
-      sectionHelper = 'Could not load categories. Pull to retry.';
+      sectionHelper = strings.loadingCategoriesPullToRetry;
     } else if (categories.isEmpty) {
-      sectionHelper = 'No categories yet. Create one in Settings.';
+      sectionHelper = strings.noCategoriesCreateInSettings;
     } else {
       sectionHelper = null;
     }
@@ -748,7 +851,7 @@ class _ExpenseFields extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         AppFormSectionCard(
-          label: 'Category',
+          label: strings.category,
           helper: sectionHelper,
           errorText: categoryError,
           child: Wrap(
@@ -766,36 +869,37 @@ class _ExpenseFields extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         _ChipSection(
-          label: 'Payment method',
+          label: strings.paymentMethod,
           errorText: paymentError,
           values: paymentMethods,
           selectedValue: selectedPaymentMethod,
+          labelBuilder: strings.paymentMethodLabel,
           onSelected: onPaymentSelected,
         ),
         const SizedBox(height: AppSpacing.sm),
         AppFormSectionCard(
-          label: 'Vendor',
-          helper: 'Optional · supplier or quick receipt context',
+          label: strings.vendor,
+          helper: strings.optionalSupplierHelper,
           child: _CardTextField(
             controller: vendorController,
-            hint: 'Shell - Mile End',
+            hint: strings.vendorHint,
             textInputAction: TextInputAction.next,
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
         AppDateField(
-          label: 'Occurred on',
+          label: strings.occurredOn,
           value: occurredOnLabel,
           showTodayPill: showTodayPill,
           onTap: onDateTap,
         ),
         const SizedBox(height: AppSpacing.sm),
         AppFormSectionCard(
-          label: 'Note',
-          helper: 'Optional · add the detail you need later',
+          label: strings.note,
+          helper: strings.optionalNoteExpenseHelper,
           child: _CardTextField(
             controller: noteController,
-            hint: 'Fuel top-up before evening run',
+            hint: strings.expenseNoteHint,
             maxLines: 3,
             minLines: 2,
             textInputAction: TextInputAction.newline,
@@ -803,8 +907,8 @@ class _ExpenseFields extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         HiFiAttachmentTile(
-          label: 'Attachment',
-          hint: 'Add receipt photo',
+          label: strings.attachment,
+          hint: strings.addReceiptPhoto,
           attachmentLabel: attachmentLabel,
           tone: HiFiAttachmentTone.expense,
           onTap: onAttachmentTap,
@@ -837,10 +941,10 @@ class _IncomeFields extends StatelessWidget {
     required this.onAttachmentTap,
   });
 
-  final String? selectedSourcePlatform;
-  final List<String> sourcePlatforms;
-  final String? selectedPaymentMethod;
-  final List<String> paymentMethods;
+  final SourcePlatformType? selectedSourcePlatform;
+  final List<SourcePlatformType> sourcePlatforms;
+  final PaymentMethodType? selectedPaymentMethod;
+  final List<PaymentMethodType> paymentMethods;
   final String? selectedCategoryName;
   final String? categoryError;
   final String? paymentError;
@@ -851,22 +955,23 @@ class _IncomeFields extends StatelessWidget {
   final bool isSettlementSelected;
   final bool categoriesLoading;
   final String? categoriesErrorMessage;
-  final ValueChanged<String> onSourcePlatformSelected;
-  final ValueChanged<String> onPaymentSelected;
+  final ValueChanged<SourcePlatformType> onSourcePlatformSelected;
+  final ValueChanged<PaymentMethodType> onPaymentSelected;
   final VoidCallback onCategoryTap;
   final VoidCallback onDateTap;
   final VoidCallback onAttachmentTap;
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     final String sourceHelper = isSettlementSelected
-        ? 'Weekly settlement · enter the Monday-Sunday total for this week'
-        : 'Optional · direct sale or delivery settlement';
+        ? strings.settlementWeekHelper
+        : strings.incomeSourceHelper;
     final String? categoryHint;
     if (categoriesLoading && selectedCategoryName == null) {
-      categoryHint = 'Loading categories...';
+      categoryHint = strings.loadingCategories;
     } else if (categoriesErrorMessage != null) {
-      categoryHint = 'Could not load categories. Pull to retry.';
+      categoryHint = strings.loadingCategoriesPullToRetry;
     } else {
       categoryHint = null;
     }
@@ -875,19 +980,21 @@ class _IncomeFields extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _ChipSection(
-          label: 'Source platform',
+          label: strings.sourcePlatform,
           helper: sourceHelper,
           values: sourcePlatforms,
           selectedValue: selectedSourcePlatform,
+          labelBuilder: strings.sourcePlatformLabel,
           chipTone: HiFiFilterChipTone.brand,
           onSelected: onSourcePlatformSelected,
         ),
         const SizedBox(height: AppSpacing.sm),
         _ChipSection(
-          label: 'Payment method',
+          label: strings.paymentMethod,
           errorText: paymentError,
           values: paymentMethods,
           selectedValue: selectedPaymentMethod,
+          labelBuilder: strings.paymentMethodLabel,
           chipTone: HiFiFilterChipTone.brand,
           onSelected: onPaymentSelected,
         ),
@@ -899,17 +1006,18 @@ class _IncomeFields extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('Category', style: AppTypography.lbl),
+              Text(strings.category, style: AppTypography.lbl),
               const SizedBox(height: AppSpacing.xs),
               Row(
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      selectedCategoryName ?? 'Choose category',
-                      style: (selectedCategoryName == null
-                              ? AppTypography.bodySoft
-                              : AppTypography.body)
-                          .copyWith(fontSize: 14.5),
+                      selectedCategoryName ?? strings.chooseCategoryLabel,
+                      style:
+                          (selectedCategoryName == null
+                                  ? AppTypography.bodySoft
+                                  : AppTypography.body)
+                              .copyWith(fontSize: 14.5),
                     ),
                   ),
                   const Icon(
@@ -941,18 +1049,18 @@ class _IncomeFields extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.sm),
         AppDateField(
-          label: 'Occurred on',
+          label: strings.occurredOn,
           value: occurredOnLabel,
           showTodayPill: showTodayPill,
           onTap: onDateTap,
         ),
         const SizedBox(height: AppSpacing.sm),
         AppFormSectionCard(
-          label: 'Note',
-          helper: 'Optional · context for the settlement or sale',
+          label: strings.note,
+          helper: strings.optionalNoteIncomeHelper,
           child: _CardTextField(
             controller: noteController,
-            hint: 'Lunch rush payout',
+            hint: strings.incomeNoteHint,
             maxLines: 3,
             minLines: 2,
             textInputAction: TextInputAction.newline,
@@ -960,8 +1068,8 @@ class _IncomeFields extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         HiFiAttachmentTile(
-          label: 'Attachment',
-          hint: 'Add payout slip',
+          label: strings.attachment,
+          hint: strings.addPayoutSlip,
           attachmentLabel: attachmentLabel,
           tone: HiFiAttachmentTone.income,
           onTap: onAttachmentTap,
@@ -971,11 +1079,12 @@ class _IncomeFields extends StatelessWidget {
   }
 }
 
-class _ChipSection extends StatelessWidget {
+class _ChipSection<T> extends StatelessWidget {
   const _ChipSection({
     required this.label,
     required this.values,
     required this.selectedValue,
+    required this.labelBuilder,
     required this.onSelected,
     this.errorText,
     this.helper,
@@ -983,9 +1092,10 @@ class _ChipSection extends StatelessWidget {
   });
 
   final String label;
-  final List<String> values;
-  final String? selectedValue;
-  final ValueChanged<String> onSelected;
+  final List<T> values;
+  final T? selectedValue;
+  final String Function(T value) labelBuilder;
+  final ValueChanged<T> onSelected;
   final String? errorText;
   final String? helper;
   final HiFiFilterChipTone chipTone;
@@ -1001,8 +1111,8 @@ class _ChipSection extends StatelessWidget {
         runSpacing: 6,
         children: values
             .map(
-              (String value) => HiFiFilterChip(
-                label: value,
+              (T value) => HiFiFilterChip(
+                label: labelBuilder(value),
                 selected: selectedValue == value,
                 tone: chipTone,
                 onTap: () => onSelected(value),
@@ -1058,13 +1168,15 @@ class _StickySaveBar extends StatelessWidget {
     required this.onSave,
     this.secondaryLabel,
     this.onSecondaryTap,
+    this.secondaryDestructive = false,
   });
 
   final String saveLabel;
   final AppButtonVariant saveVariant;
-  final VoidCallback onSave;
+  final VoidCallback? onSave;
   final String? secondaryLabel;
   final VoidCallback? onSecondaryTap;
+  final bool secondaryDestructive;
 
   @override
   Widget build(BuildContext context) {
@@ -1082,11 +1194,13 @@ class _StickySaveBar extends StatelessWidget {
           ),
           child: Row(
             children: <Widget>[
-              if (secondaryLabel != null && onSecondaryTap != null) ...<Widget>[
+              if (secondaryLabel != null) ...<Widget>[
                 AppButton(
                   label: secondaryLabel!,
                   onPressed: onSecondaryTap,
-                  variant: AppButtonVariant.ghost,
+                  variant: secondaryDestructive
+                      ? AppButtonVariant.expense
+                      : AppButtonVariant.ghost,
                   size: AppButtonSize.compact,
                   expanded: false,
                 ),

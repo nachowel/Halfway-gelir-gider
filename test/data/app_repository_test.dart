@@ -2,16 +2,26 @@
 
 import 'dart:convert';
 
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gider/core/domain/types.dart' show DomainValidationException;
 import 'package:gider/data/app_models.dart';
 import 'package:gider/data/app_repository.dart';
+import 'package:gider/data/local/app_database.dart';
+import 'package:gider/data/local/outbox_repository.dart';
+import 'package:gider/data/sync/sync_engine.dart';
+import 'package:gider/data/sync/sync_service.dart';
+import 'package:gider/l10n/app_locale.dart';
+import 'package:gider/l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _MockGoTrueClient extends Mock implements GoTrueClient {}
+
+class _MockSyncService extends Mock implements SyncService {}
 
 class _TestSupabaseClient extends SupabaseClient {
   _TestSupabaseClient({
@@ -24,6 +34,15 @@ class _TestSupabaseClient extends SupabaseClient {
 
   @override
   GoTrueClient get auth => _authClient;
+}
+
+class _FakeConnectivityProbe implements ConnectivityProbe {
+  const _FakeConnectivityProbe(this.online);
+
+  final bool online;
+
+  @override
+  Future<bool> isOnline() async => online;
 }
 
 void main() {
@@ -430,6 +449,409 @@ void main() {
       expect(patchUrl!.queryParameters['user_id'], 'eq.user-1');
     });
 
+    test('createTransaction queues to outbox when offline', () async {
+      final AppDatabase database = AppDatabase(
+        executor: NativeDatabase.memory(),
+      );
+      addTearDown(database.close);
+      final OutboxRepository outboxRepository = OutboxRepository(database);
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              request.url.queryParameters['select'] == 'type,name') {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'expense', 'name': 'Rent'},
+            ]);
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+        outboxRepository: outboxRepository,
+        connectivityProbe: const _FakeConnectivityProbe(false),
+      );
+
+      await repository.createTransaction(
+        EntryDraft(
+          type: TransactionType.expense,
+          occurredOn: DateTime(2026, 4, 20),
+          amountMinor: 8500,
+          categoryId: 'category-1',
+          paymentMethod: PaymentMethodType.card,
+        ),
+      );
+
+      final List<PendingOutboxEntry> entries = await outboxRepository
+          .pendingEntries();
+      expect(entries, hasLength(1));
+      expect(entries.single.operation, OutboxOperationType.createTransaction);
+    });
+
+    test(
+      'createTransaction throws when online sync leaves queued entry incomplete',
+      () async {
+        final AppDatabase database = AppDatabase(
+          executor: NativeDatabase.memory(),
+        );
+        addTearDown(database.close);
+        final OutboxRepository outboxRepository = OutboxRepository(database);
+        final _MockSyncService syncService = _MockSyncService();
+        when(
+          () => syncService.syncNow(maxEntries: any(named: 'maxEntries')),
+        ).thenAnswer(
+          (_) async => const SyncRunResult(
+            recoveredStaleProcessing: 0,
+            processedEntries: 0,
+            succeededEntries: 0,
+            alreadyAppliedEntries: 0,
+            retryableFailures: 0,
+            nonRetryableFailures: 0,
+          ),
+        );
+
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'type,name') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{'type': 'income', 'name': 'Card Sales'},
+              ]);
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+          outboxRepository: outboxRepository,
+          connectivityProbe: const _FakeConnectivityProbe(true),
+          syncService: syncService,
+        );
+
+        await expectLater(
+          repository.createTransaction(
+            EntryDraft(
+              type: TransactionType.income,
+              occurredOn: DateTime(2026, 4, 20),
+              amountMinor: 8500,
+              categoryId: 'category-1',
+              paymentMethod: PaymentMethodType.card,
+            ),
+          ),
+          throwsA(isA<Exception>()),
+        );
+
+        final List<PendingOutboxEntry> entries = await outboxRepository
+            .pendingEntries();
+        expect(entries, hasLength(1));
+        expect(entries.single.operation, OutboxOperationType.createTransaction);
+        verify(() => syncService.syncNow(maxEntries: 20)).called(1);
+      },
+    );
+
+    test('updateTransaction queues to outbox when offline', () async {
+      final AppDatabase database = AppDatabase(
+        executor: NativeDatabase.memory(),
+      );
+      addTearDown(database.close);
+      final OutboxRepository outboxRepository = OutboxRepository(database);
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              request.url.queryParameters['select'] == 'type,name') {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'income', 'name': 'Card Sales'},
+            ]);
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+        outboxRepository: outboxRepository,
+        connectivityProbe: const _FakeConnectivityProbe(false),
+      );
+
+      await repository.updateTransaction(
+        id: 'tx-offline-update',
+        draft: EntryDraft(
+          type: TransactionType.income,
+          occurredOn: DateTime(2026, 4, 21),
+          amountMinor: 156000,
+          categoryId: 'category-1',
+          paymentMethod: PaymentMethodType.card,
+        ),
+      );
+
+      final List<PendingOutboxEntry> entries = await outboxRepository
+          .pendingEntries();
+      expect(entries, hasLength(1));
+      expect(entries.single.operation, OutboxOperationType.updateTransaction);
+      expect(entries.single.entityId, 'tx-offline-update');
+    });
+
+    test('deleteTransaction queues to outbox when offline', () async {
+      final AppDatabase database = AppDatabase(
+        executor: NativeDatabase.memory(),
+      );
+      addTearDown(database.close);
+      final OutboxRepository outboxRepository = OutboxRepository(database);
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+        outboxRepository: outboxRepository,
+        connectivityProbe: const _FakeConnectivityProbe(false),
+      );
+
+      await repository.deleteTransaction(id: 'tx-offline-delete');
+
+      final List<PendingOutboxEntry> entries = await outboxRepository
+          .pendingEntries();
+      expect(entries, hasLength(1));
+      expect(entries.single.operation, OutboxOperationType.deleteTransaction);
+      expect(entries.single.entityId, 'tx-offline-delete');
+    });
+
+    test(
+      'fetchReportsSnapshot computes monthly totals and expense-only breakdown in descending order',
+      () async {
+        String isoDate(DateTime value) {
+          final String year = value.year.toString().padLeft(4, '0');
+          final String month = value.month.toString().padLeft(2, '0');
+          final String day = value.day.toString().padLeft(2, '0');
+          return '$year-$month-$day';
+        }
+
+        Map<String, dynamic> txRow({
+          required String id,
+          required String type,
+          required int amountMinor,
+          required DateTime occurredOn,
+          required String categoryName,
+          required String categoryType,
+        }) {
+          return <String, dynamic>{
+            'id': id,
+            'type': type,
+            'occurred_on': isoDate(occurredOn),
+            'amount_minor': amountMinor,
+            'currency': 'GBP',
+            'payment_method': 'card',
+            'source_platform': null,
+            'note': null,
+            'vendor': null,
+            'attachment_path': null,
+            'recurring_expense_id': null,
+            'created_at': '2026-04-21T08:00:00Z',
+            'category': <String, dynamic>{
+              'id': 'cat-$id',
+              'name': categoryName,
+              'type': categoryType,
+            },
+          };
+        }
+
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'id,type,name') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'cat-income',
+                  'type': 'income',
+                  'name': 'Card Sales',
+                },
+              ]);
+            }
+
+            if (request.method == 'POST' &&
+                request.url.path.endsWith('/rest/v1/categories')) {
+              return _jsonResponse(
+                request,
+                <Map<String, dynamic>>[],
+                statusCode: 201,
+              );
+            }
+
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                txRow(
+                  id: 'income-1',
+                  type: 'income',
+                  amountMinor: 220000,
+                  occurredOn: DateTime(2026, 4, 3),
+                  categoryName: 'Card Sales',
+                  categoryType: 'income',
+                ),
+                txRow(
+                  id: 'income-2',
+                  type: 'income',
+                  amountMinor: 40000,
+                  occurredOn: DateTime(2026, 4, 18),
+                  categoryName: 'Uber Settlement',
+                  categoryType: 'income',
+                ),
+                txRow(
+                  id: 'expense-1',
+                  type: 'expense',
+                  amountMinor: 85000,
+                  occurredOn: DateTime(2026, 4, 5),
+                  categoryName: 'Rent',
+                  categoryType: 'expense',
+                ),
+                txRow(
+                  id: 'expense-2',
+                  type: 'expense',
+                  amountMinor: 12000,
+                  occurredOn: DateTime(2026, 4, 10),
+                  categoryName: 'Fuel',
+                  categoryType: 'expense',
+                ),
+                txRow(
+                  id: 'expense-3',
+                  type: 'expense',
+                  amountMinor: 18000,
+                  occurredOn: DateTime(2026, 4, 16),
+                  categoryName: 'Fuel',
+                  categoryType: 'expense',
+                ),
+              ]);
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        final ReportsSnapshot snapshot = await repository.fetchReportsSnapshot(
+          DateTime(2026, 4, 21),
+          const AppLocalizations(AppLocale.tr),
+        );
+
+        expect(snapshot.monthLabel, 'Nisan');
+        expect(snapshot.yearLabel, '2026');
+        expect(snapshot.incomeMinor, 260000);
+        expect(snapshot.expenseMinor, 115000);
+        expect(snapshot.netMinor, 145000);
+        expect(
+          snapshot.breakdown.map(
+            (ReportBreakdownItem item) => item.categoryName,
+          ),
+          <String>['Rent', 'Fuel'],
+        );
+        expect(
+          snapshot.breakdown.map(
+            (ReportBreakdownItem item) => item.amountMinor,
+          ),
+          <int>[85000, 30000],
+        );
+      },
+    );
+
+    test(
+      'fetchMonthlyReportsDataset returns raw transaction window plus category icon maps',
+      () async {
+        String isoDate(DateTime value) {
+          final String year = value.year.toString().padLeft(4, '0');
+          final String month = value.month.toString().padLeft(2, '0');
+          final String day = value.day.toString().padLeft(2, '0');
+          return '$year-$month-$day';
+        }
+
+        Map<String, dynamic> txRow({
+          required String id,
+          required String type,
+          required int amountMinor,
+          required DateTime occurredOn,
+          required String categoryName,
+          required String categoryType,
+        }) {
+          return <String, dynamic>{
+            'id': id,
+            'type': type,
+            'occurred_on': isoDate(occurredOn),
+            'amount_minor': amountMinor,
+            'currency': 'GBP',
+            'payment_method': 'card',
+            'source_platform': null,
+            'note': null,
+            'vendor': null,
+            'attachment_path': null,
+            'recurring_expense_id': null,
+            'created_at': '2026-04-21T08:00:00Z',
+            'category': <String, dynamic>{
+              'id': 'cat-$id',
+              'name': categoryName,
+              'type': categoryType,
+            },
+          };
+        }
+
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'id,type,name') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'cat-income',
+                  'type': 'income',
+                  'name': 'Card Sales',
+                },
+              ]);
+            }
+
+            if (request.method == 'POST' &&
+                request.url.path.endsWith('/rest/v1/categories')) {
+              return _jsonResponse(
+                request,
+                <Map<String, dynamic>>[],
+                statusCode: 201,
+              );
+            }
+
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                txRow(
+                  id: 'income-1',
+                  type: 'income',
+                  amountMinor: 220000,
+                  occurredOn: DateTime(2026, 4, 3),
+                  categoryName: 'Card Sales',
+                  categoryType: 'income',
+                ),
+                txRow(
+                  id: 'expense-1',
+                  type: 'expense',
+                  amountMinor: 85000,
+                  occurredOn: DateTime(2026, 4, 5),
+                  categoryName: 'Rent',
+                  categoryType: 'expense',
+                ),
+              ]);
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        final MonthlyReportsDataset dataset = await repository
+            .fetchMonthlyReportsDataset(
+              DateTime(2026, 4, 21),
+              trendMonthCount: 4,
+            );
+
+        expect(dataset.selectedMonth, DateTime(2026, 4, 1));
+        expect(dataset.trendMonthCount, 4);
+        expect(dataset.transactions, hasLength(2));
+        expect(dataset.expenseCategoryIcons['Rent'], Icons.home_rounded);
+        expect(
+          dataset.incomeCategoryIcons['Card Sales'],
+          Icons.payments_rounded,
+        );
+      },
+    );
+
     test('createRecurringExpense rejects invalid recurring payload', () async {
       bool insertCalled = false;
       final GiderRepository repository = GiderRepository(
@@ -774,67 +1196,604 @@ void main() {
         businessName: 'Little Lane Deli',
       );
 
-      final VerificationResult captured =
-          verify(
-            () => authClient.signUp(
-              email: any(named: 'email'),
-              password: any(named: 'password'),
-              data: captureAny(named: 'data'),
-            ),
-          )..called(1);
+      final VerificationResult captured = verify(
+        () => authClient.signUp(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+          data: captureAny(named: 'data'),
+        ),
+      )..called(1);
       final Map<String, dynamic> data =
           captured.captured.single as Map<String, dynamic>;
       expect(data['full_name'], 'Little Lane Deli');
     });
 
+    test('createRecurringExpense posts valid payload', () async {
+      Map<String, dynamic>? requestBody;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          // category type lookup (select=type)
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              (request.url.queryParameters['select'] == 'type' ||
+                  request.url.queryParameters['select'] == 'id,type,name')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'cat-expense',
+                'type': 'expense',
+                'name': 'Rent',
+              },
+            ]);
+          }
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/rest/v1/recurring_expenses')) {
+            final Object decoded = jsonDecode(request.body);
+            requestBody = decoded is List<dynamic>
+                ? decoded.single as Map<String, dynamic>
+                : decoded as Map<String, dynamic>;
+            return _jsonResponse(
+              request,
+              <Map<String, dynamic>>[],
+              statusCode: 201,
+            );
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await repository.createRecurringExpense(
+        RecurringDraft(
+          name: '  Rent  ',
+          categoryId: 'cat-expense',
+          amountMinor: 85000,
+          frequency: RecurringFrequencyType.monthly,
+          nextDueOn: DateTime(2026, 5, 1),
+          reserveEnabled: true,
+        ),
+      );
+
+      expect(requestBody, isNotNull);
+      expect(requestBody!['name'], 'Rent');
+      expect(requestBody!['amount_minor'], 85000);
+      expect(requestBody!['frequency'], 'monthly');
+      expect(requestBody!['is_active'], true);
+      expect(requestBody!['reserve_enabled'], true);
+      expect(requestBody!['user_id'], 'user-1');
+    });
+
+    test('updateRecurringExpense patches via PATCH', () async {
+      Map<String, dynamic>? patchBody;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              (request.url.queryParameters['select'] == 'type' ||
+                  request.url.queryParameters['select'] == 'id,type,name')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'cat-expense',
+                'type': 'expense',
+                'name': 'Rent',
+              },
+            ]);
+          }
+          if (request.method == 'PATCH' &&
+              request.url.path.endsWith('/rest/v1/recurring_expenses')) {
+            patchBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return _jsonResponse(request, <Map<String, dynamic>>[]);
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await repository.updateRecurringExpense(
+        id: 'rec-1',
+        draft: RecurringDraft(
+          name: 'Rent updated',
+          categoryId: 'cat-expense',
+          amountMinor: 90000,
+          frequency: RecurringFrequencyType.monthly,
+          nextDueOn: DateTime(2026, 6, 1),
+          reserveEnabled: true,
+        ),
+      );
+
+      expect(patchBody, isNotNull);
+      expect(patchBody!['name'], 'Rent updated');
+      expect(patchBody!['amount_minor'], 90000);
+      expect(patchBody!['frequency'], 'monthly');
+      expect(patchBody!['reserve_enabled'], true);
+    });
+
     test(
-      'fetchBusinessSettings is read-only when both rows exist',
+      'fetchDashboardSnapshot computes weekly totals and delta with bank transfer income',
       () async {
-        final List<String> methods = <String>[];
+        final DateTime today = DateTime.now();
+        final DateTime normalizedToday = DateTime(
+          today.year,
+          today.month,
+          today.day,
+        );
+        String isoDate(DateTime value) {
+          final String year = value.year.toString().padLeft(4, '0');
+          final String month = value.month.toString().padLeft(2, '0');
+          final String day = value.day.toString().padLeft(2, '0');
+          return '$year-$month-$day';
+        }
+
+        Map<String, dynamic> txRow({
+          required String id,
+          required String type,
+          required int amountMinor,
+          required String paymentMethod,
+          required DateTime occurredOn,
+          required String createdAt,
+          String categoryName = 'Sales',
+          String categoryType = 'income',
+          String? vendor,
+        }) {
+          return <String, dynamic>{
+            'id': id,
+            'type': type,
+            'occurred_on': isoDate(occurredOn),
+            'amount_minor': amountMinor,
+            'currency': 'GBP',
+            'payment_method': paymentMethod,
+            'source_platform': null,
+            'note': null,
+            'vendor': vendor,
+            'attachment_path': null,
+            'recurring_expense_id': null,
+            'created_at': createdAt,
+            'category': <String, dynamic>{
+              'id': 'cat-${categoryType == 'income' ? 'income' : 'expense'}',
+              'name': categoryName,
+              'type': categoryType,
+            },
+          };
+        }
+
+        final List<Map<String, dynamic>> currentWeekRows =
+            <Map<String, dynamic>>[
+              txRow(
+                id: 'tx-cash',
+                type: 'income',
+                amountMinor: 12000,
+                paymentMethod: 'cash',
+                occurredOn: normalizedToday,
+                createdAt: '2026-04-21T08:00:00Z',
+                vendor: 'Walk-in sales',
+              ),
+              txRow(
+                id: 'tx-card',
+                type: 'income',
+                amountMinor: 18000,
+                paymentMethod: 'card',
+                occurredOn: normalizedToday.subtract(const Duration(days: 1)),
+                createdAt: '2026-04-20T08:00:00Z',
+                vendor: 'Card terminal',
+              ),
+              txRow(
+                id: 'tx-transfer',
+                type: 'income',
+                amountMinor: 10000,
+                paymentMethod: 'bank_transfer',
+                occurredOn: normalizedToday.subtract(const Duration(days: 2)),
+                createdAt: '2026-04-19T08:00:00Z',
+                categoryName: 'Uber Settlement',
+                vendor: 'Uber',
+              ),
+              txRow(
+                id: 'tx-expense',
+                type: 'expense',
+                amountMinor: 9000,
+                paymentMethod: 'card',
+                occurredOn: normalizedToday.subtract(const Duration(days: 3)),
+                createdAt: '2026-04-18T08:00:00Z',
+                categoryName: 'Supplies',
+                categoryType: 'expense',
+                vendor: 'Supplier',
+              ),
+            ];
+        final List<Map<String, dynamic>> recentRows = <Map<String, dynamic>>[
+          txRow(
+            id: 'recent-5',
+            type: 'expense',
+            amountMinor: 2500,
+            paymentMethod: 'cash',
+            occurredOn: normalizedToday.subtract(const Duration(days: 4)),
+            createdAt: '2026-04-17T12:00:00Z',
+            categoryName: 'Stock Purchase',
+            categoryType: 'expense',
+          ),
+          txRow(
+            id: 'recent-1',
+            type: 'income',
+            amountMinor: 5000,
+            paymentMethod: 'cash',
+            occurredOn: normalizedToday,
+            createdAt: '2026-04-21T12:00:00Z',
+            vendor: 'Recent 1',
+          ),
+          txRow(
+            id: 'recent-2',
+            type: 'expense',
+            amountMinor: 2000,
+            paymentMethod: 'card',
+            occurredOn: normalizedToday.subtract(const Duration(days: 1)),
+            createdAt: '2026-04-20T12:00:00Z',
+            categoryName: 'Rent',
+            categoryType: 'expense',
+          ),
+          txRow(
+            id: 'recent-4',
+            type: 'income',
+            amountMinor: 4000,
+            paymentMethod: 'bank_transfer',
+            occurredOn: normalizedToday.subtract(const Duration(days: 3)),
+            createdAt: '2026-04-18T12:00:00Z',
+            vendor: 'Recent 4',
+          ),
+          txRow(
+            id: 'recent-3',
+            type: 'income',
+            amountMinor: 3000,
+            paymentMethod: 'card',
+            occurredOn: normalizedToday.subtract(const Duration(days: 2)),
+            createdAt: '2026-04-19T12:00:00Z',
+            vendor: 'Recent 3',
+          ),
+          txRow(
+            id: 'recent-6',
+            type: 'expense',
+            amountMinor: 1500,
+            paymentMethod: 'card',
+            occurredOn: normalizedToday.subtract(const Duration(days: 5)),
+            createdAt: '2026-04-16T12:00:00Z',
+            categoryName: 'Utilities',
+            categoryType: 'expense',
+          ),
+        ];
+        final List<Map<String, dynamic>> previousWeekRows =
+            <Map<String, dynamic>>[
+              txRow(
+                id: 'prev-income',
+                type: 'income',
+                amountMinor: 30000,
+                paymentMethod: 'cash',
+                occurredOn: normalizedToday.subtract(const Duration(days: 7)),
+                createdAt: '2026-04-14T08:00:00Z',
+              ),
+              txRow(
+                id: 'prev-expense',
+                type: 'expense',
+                amountMinor: 5000,
+                paymentMethod: 'card',
+                occurredOn: normalizedToday.subtract(const Duration(days: 8)),
+                createdAt: '2026-04-13T08:00:00Z',
+                categoryName: 'Rent',
+                categoryType: 'expense',
+              ),
+            ];
+
+        int transactionRequestCount = 0;
         final GiderRepository repository = GiderRepository(
           _buildClient((http.Request request) async {
-            methods.add('${request.method} ${request.url.path}');
-
             if (request.method == 'GET' &&
-                request.url.path.endsWith('/rest/v1/profiles')) {
+                request.url.path.endsWith('/rest/v1/categories')) {
               return _jsonResponse(request, <Map<String, dynamic>>[
                 <String, dynamic>{
-                  'email': 'owner@example.com',
-                  'full_name': 'Little Lane Deli',
+                  'id': 'cat-income',
+                  'type': 'income',
+                  'name': 'Cash Sales',
                 },
               ]);
             }
 
+            if (request.method == 'POST' &&
+                request.url.path.endsWith('/rest/v1/categories')) {
+              return _jsonResponse(
+                request,
+                <Map<String, dynamic>>[],
+                statusCode: 201,
+              );
+            }
+
             if (request.method == 'GET' &&
-                request.url.path.endsWith('/rest/v1/business_settings')) {
-              return _jsonResponse(request, <Map<String, dynamic>>[
-                <String, dynamic>{
-                  'business_name': 'Little Lane Deli',
-                  'timezone': 'Europe/London',
-                  'currency': 'GBP',
-                  'week_starts_on': 1,
-                },
-              ]);
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              transactionRequestCount += 1;
+              final List<Map<String, dynamic>> response =
+                  switch (transactionRequestCount) {
+                    1 => currentWeekRows,
+                    2 => recentRows,
+                    3 => previousWeekRows,
+                    _ => <Map<String, dynamic>>[],
+                  };
+              return _jsonResponse(request, response);
+            }
+
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/recurring_expenses')) {
+              return _jsonResponse(request, <Map<String, dynamic>>[]);
             }
 
             fail('Unexpected HTTP call: ${request.method} ${request.url}');
           }),
         );
 
-        await repository.fetchBusinessSettings();
+        final DashboardSnapshot snapshot = await repository
+            .fetchDashboardSnapshot(const AppLocalizations(AppLocale.en));
 
+        expect(snapshot.incomeMinor, 40000);
+        expect(snapshot.expenseMinor, 9000);
+        expect(snapshot.netMinor, 31000);
+        expect(snapshot.cashIncomeMinor, 12000);
+        expect(snapshot.cardIncomeMinor, 18000);
+        expect(snapshot.netDeltaMinor, 6000);
         expect(
-          methods.where((String m) => m.startsWith('POST')).toList(),
-          isEmpty,
-          reason: 'fetchBusinessSettings must not POST',
+          snapshot.recentTransactions.map((TransactionData tx) => tx.id),
+          <String>['recent-1', 'recent-2', 'recent-3', 'recent-4'],
         );
-        expect(
-          methods.where((String m) => m.startsWith('PATCH')).toList(),
-          isEmpty,
-          reason: 'fetchBusinessSettings must not PATCH',
-        );
+        expect(snapshot.upcomingRecurring, isEmpty);
       },
     );
+
+    test('fetchDashboardSnapshot includes reserve planner summary', () async {
+      final DateTime today = DateTime.now();
+      final DateTime normalizedToday = DateTime(
+        today.year,
+        today.month,
+        today.day,
+      );
+      final DateTime electricityDue = normalizedToday.add(
+        const Duration(days: 1),
+      );
+      final DateTime gasDue = normalizedToday.add(const Duration(days: 12));
+      final DateTime broadbandDue = normalizedToday.add(
+        const Duration(days: 3),
+      );
+      final DateTime rentDue = normalizedToday.add(const Duration(days: 28));
+      String isoDate(DateTime value) {
+        final String year = value.year.toString().padLeft(4, '0');
+        final String month = value.month.toString().padLeft(2, '0');
+        final String day = value.day.toString().padLeft(2, '0');
+        return '$year-$month-$day';
+      }
+
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'cat-expense',
+                'type': 'expense',
+                'name': 'Rent',
+              },
+            ]);
+          }
+
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/rest/v1/categories')) {
+            return _jsonResponse(
+              request,
+              <Map<String, dynamic>>[],
+              statusCode: 201,
+            );
+          }
+
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/transactions')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'tx-1',
+                'type': 'expense',
+                'occurred_on': isoDate(normalizedToday),
+                'amount_minor': 12000,
+                'currency': 'GBP',
+                'payment_method': 'bank_transfer',
+                'source_platform': null,
+                'note': null,
+                'vendor': 'Landlord',
+                'attachment_path': null,
+                'recurring_expense_id': null,
+                'created_at': '2026-04-21T08:00:00Z',
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+            ]);
+          }
+
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/recurring_expenses')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'rec-gas',
+                'name': 'Gas',
+                'category_id': 'cat-expense',
+                'amount_minor': 18000,
+                'currency': 'GBP',
+                'frequency': 'monthly',
+                'next_due_on': isoDate(gasDue),
+                'reminder_days_before': 3,
+                'default_payment_method': 'card',
+                'reserve_enabled': true,
+                'is_active': true,
+                'note': null,
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+              <String, dynamic>{
+                'id': 'rec-electricity',
+                'name': 'Electricity',
+                'category_id': 'cat-expense',
+                'amount_minor': 6000,
+                'currency': 'GBP',
+                'frequency': 'monthly',
+                'next_due_on': isoDate(electricityDue),
+                'reminder_days_before': 3,
+                'default_payment_method': 'card',
+                'reserve_enabled': true,
+                'is_active': true,
+                'note': null,
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+              <String, dynamic>{
+                'id': 'rec-rent',
+                'name': 'Rent',
+                'category_id': 'cat-expense',
+                'amount_minor': 120000,
+                'currency': 'GBP',
+                'frequency': 'monthly',
+                'next_due_on': isoDate(rentDue),
+                'reminder_days_before': 3,
+                'default_payment_method': 'bank_transfer',
+                'reserve_enabled': true,
+                'is_active': true,
+                'note': null,
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+              <String, dynamic>{
+                'id': 'rec-broadband',
+                'name': 'Broadband',
+                'category_id': 'cat-expense',
+                'amount_minor': 4500,
+                'currency': 'GBP',
+                'frequency': 'monthly',
+                'next_due_on': isoDate(broadbandDue),
+                'reminder_days_before': 3,
+                'default_payment_method': 'card',
+                'reserve_enabled': true,
+                'is_active': true,
+                'note': null,
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+              <String, dynamic>{
+                'id': 'rec-disabled',
+                'name': 'Disabled',
+                'category_id': 'cat-expense',
+                'amount_minor': 9999,
+                'currency': 'GBP',
+                'frequency': 'monthly',
+                'next_due_on': '2026-04-25',
+                'reminder_days_before': 3,
+                'default_payment_method': 'card',
+                'reserve_enabled': false,
+                'is_active': true,
+                'note': null,
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+            ]);
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      final DashboardSnapshot snapshot = await repository
+          .fetchDashboardSnapshot(const AppLocalizations(AppLocale.en));
+
+      expect(snapshot.reservePlanner.eligibleItemCount, 4);
+      expect(snapshot.reservePlanner.totalSuggestedWeeklyReserveMinor, 49500);
+      expect(
+        snapshot.reservePlanner.items.map((ReservePlannerItem item) => item.id),
+        <String>['rec-electricity', 'rec-broadband', 'rec-gas', 'rec-rent'],
+      );
+      expect(
+        snapshot.upcomingRecurring.map(
+          (RecurringUiItem item) => item.record.id,
+        ),
+        <String>['rec-electricity', 'rec-broadband', 'rec-disabled'],
+      );
+    });
+
+    test('deactivateRecurringExpense patches is_active to false', () async {
+      Map<String, dynamic>? patchBody;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'PATCH' &&
+              request.url.path.endsWith('/rest/v1/recurring_expenses')) {
+            patchBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return _jsonResponse(request, <Map<String, dynamic>>[]);
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await repository.deactivateRecurringExpense(id: 'rec-1');
+
+      expect(patchBody, isNotNull);
+      expect(patchBody!['is_active'], false);
+      expect(patchBody!.containsKey('name'), isFalse);
+    });
+
+    test('fetchBusinessSettings is read-only when both rows exist', () async {
+      final List<String> methods = <String>[];
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          methods.add('${request.method} ${request.url.path}');
+
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/profiles')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'email': 'owner@example.com',
+                'full_name': 'Little Lane Deli',
+              },
+            ]);
+          }
+
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/business_settings')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'business_name': 'Little Lane Deli',
+                'timezone': 'Europe/London',
+                'currency': 'GBP',
+                'week_starts_on': 1,
+              },
+            ]);
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await repository.fetchBusinessSettings();
+
+      expect(
+        methods.where((String m) => m.startsWith('POST')).toList(),
+        isEmpty,
+        reason: 'fetchBusinessSettings must not POST',
+      );
+      expect(
+        methods.where((String m) => m.startsWith('PATCH')).toList(),
+        isEmpty,
+        reason: 'fetchBusinessSettings must not PATCH',
+      );
+    });
   });
 }
 

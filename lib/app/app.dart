@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/app_localizations.dart';
 import 'providers/app_providers.dart';
 import 'router/app_router.dart';
 import 'router/route_access.dart';
@@ -12,12 +13,18 @@ class GiderApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     AppTheme.configure();
+    final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+    final locale = ref.watch(appLocaleProvider);
     final AppAuthRoutingStatus authRoutingStatus = ref.watch(
       authRoutingStatusProvider,
     );
 
     if (authRoutingStatus == AppAuthRoutingStatus.loading) {
-      return _buildBootstrapApp(child: const _AuthBootstrapScreen());
+      return _buildBootstrapApp(
+        locale: locale.locale,
+        strings: strings,
+        child: const _AuthBootstrapScreen(),
+      );
     }
 
     if (authRoutingStatus == AppAuthRoutingStatus.authenticated) {
@@ -27,30 +34,46 @@ class GiderApp extends ConsumerWidget {
 
       if (bootstrapStatus == BusinessSettingsBootstrapStatus.loading) {
         return _buildBootstrapApp(
-          child: const _BootstrapProgressScreen(
-            message: 'Preparing your business setup...',
+          locale: locale.locale,
+          strings: strings,
+          child: _BootstrapProgressScreen(
+            message: strings.preparingBusinessSetup,
           ),
         );
       }
 
       if (bootstrapStatus == BusinessSettingsBootstrapStatus.error) {
-        return _buildBootstrapApp(child: const _BootstrapFailureScreen());
+        return _buildBootstrapApp(
+          locale: locale.locale,
+          strings: strings,
+          child: const _BootstrapFailureScreen(),
+        );
       }
     }
 
     return MaterialApp.router(
-      title: 'Gider',
+      title: strings.appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      locale: locale.locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.globalDelegates,
       routerConfig: ref.watch(appRouterProvider),
     );
   }
 
-  MaterialApp _buildBootstrapApp({required Widget child}) {
+  MaterialApp _buildBootstrapApp({
+    required Locale locale,
+    required AppLocalizations strings,
+    required Widget child,
+  }) {
     return MaterialApp(
-      title: 'Gider',
+      title: strings.appTitle,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.globalDelegates,
       onGenerateRoute: (RouteSettings settings) {
         return MaterialPageRoute<void>(
           settings: settings,
@@ -66,7 +89,7 @@ class _AuthBootstrapScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _BootstrapProgressScreen(message: 'Checking your session...');
+    return _BootstrapProgressScreen(message: context.strings.checkingSession);
   }
 }
 
@@ -97,6 +120,7 @@ class _BootstrapFailureScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final AppLocalizations strings = ref.watch(appLocalizationsProvider);
     return Scaffold(
       body: Center(
         child: Padding(
@@ -104,11 +128,11 @@ class _BootstrapFailureScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Text('We could not load your business settings.'),
+              Text(strings.bootstrapSettingsLoadError),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => ref.invalidate(businessSettingsProvider),
-                child: const Text('Try again'),
+                child: Text(strings.tryAgain),
               ),
             ],
           ),

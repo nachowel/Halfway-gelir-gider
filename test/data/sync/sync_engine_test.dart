@@ -10,13 +10,31 @@ import 'package:gider/data/sync/conflict_policy.dart';
 import 'package:gider/data/sync/sync_engine.dart';
 
 class _FakeTransactionSyncGateway implements TransactionSyncGateway {
-  _FakeTransactionSyncGateway(this._handler);
+  _FakeTransactionSyncGateway({
+    Future<String> Function(Map<String, dynamic> payload)? onCreate,
+    Future<void> Function(Map<String, dynamic> payload)? onUpdate,
+    Future<void> Function(Map<String, dynamic> payload)? onDelete,
+  }) : _onCreate = onCreate,
+       _onUpdate = onUpdate,
+       _onDelete = onDelete;
 
-  final Future<String> Function(Map<String, dynamic> payload) _handler;
+  final Future<String> Function(Map<String, dynamic> payload)? _onCreate;
+  final Future<void> Function(Map<String, dynamic> payload)? _onUpdate;
+  final Future<void> Function(Map<String, dynamic> payload)? _onDelete;
 
   @override
   Future<String> createTransaction(Map<String, dynamic> payload) {
-    return _handler(payload);
+    return _onCreate!(payload);
+  }
+
+  @override
+  Future<void> updateTransaction(Map<String, dynamic> payload) {
+    return _onUpdate!(payload);
+  }
+
+  @override
+  Future<void> deleteTransaction(Map<String, dynamic> payload) {
+    return _onDelete!(payload);
   }
 }
 
@@ -58,7 +76,8 @@ void main() {
       final SyncEngine engine = SyncEngine(
         outboxRepository: outboxRepository,
         transactionGateway: _FakeTransactionSyncGateway(
-          (Map<String, dynamic> payload) async => payload['local_id'] as String,
+          onCreate: (Map<String, dynamic> payload) async =>
+              payload['local_id'] as String,
         ),
         conflictPolicy: conflictPolicy,
         clock: () => now,
@@ -84,7 +103,7 @@ void main() {
       final SyncEngine engine = SyncEngine(
         outboxRepository: outboxRepository,
         transactionGateway: _FakeTransactionSyncGateway(
-          (_) async => throw TimeoutException('network timeout'),
+          onCreate: (_) async => throw TimeoutException('network timeout'),
         ),
         conflictPolicy: conflictPolicy,
         clock: () => now,
@@ -109,7 +128,7 @@ void main() {
       final SyncEngine engine = SyncEngine(
         outboxRepository: outboxRepository,
         transactionGateway: _FakeTransactionSyncGateway(
-          (_) async => throw const SyncRemoteException(
+          onCreate: (_) async => throw const SyncRemoteException(
             message: 'invalid category reference',
             code: '23503',
           ),
@@ -136,7 +155,7 @@ void main() {
         final SyncEngine engine = SyncEngine(
           outboxRepository: outboxRepository,
           transactionGateway: _FakeTransactionSyncGateway(
-            (_) async => throw const SyncRemoteException(
+            onCreate: (_) async => throw const SyncRemoteException(
               message: 'duplicate key value violates unique constraint',
               code: '23505',
             ),
@@ -181,7 +200,8 @@ void main() {
       final SyncEngine engine = SyncEngine(
         outboxRepository: outboxRepository,
         transactionGateway: _FakeTransactionSyncGateway(
-          (Map<String, dynamic> payload) async => payload['local_id'] as String,
+          onCreate: (Map<String, dynamic> payload) async =>
+              payload['local_id'] as String,
         ),
         conflictPolicy: conflictPolicy,
         clock: () => now,
@@ -196,5 +216,142 @@ void main() {
       expect(result.succeededEntries, 1);
       expect(outbox.status, 'completed');
     });
+
+    test('successful update completes queued transaction update', () async {
+      final String? entryId = await outboxRepository.queueUpdateTransaction(
+        transactionId: 'tx-1',
+        draft: EntryDraft(
+          type: TransactionType.expense,
+          occurredOn: DateTime(2026, 4, 21),
+          amountMinor: 5100,
+          categoryId: 'c1111111-1111-4111-8111-111111111111',
+          paymentMethod: PaymentMethodType.card,
+          vendor: 'Updated vendor',
+        ),
+        categoryType: CategoryType.expense,
+      );
+      final SyncEngine engine = SyncEngine(
+        outboxRepository: outboxRepository,
+        transactionGateway: _FakeTransactionSyncGateway(onUpdate: (_) async {}),
+        conflictPolicy: conflictPolicy,
+        clock: () => now,
+      );
+
+      final SyncRunResult result = await engine.processPending();
+      final OutboxEntry outbox = (await outboxRepository.findOutboxEntry(
+        entryId!,
+      ))!;
+
+      expect(result.succeededEntries, 1);
+      expect(outbox.status, 'completed');
+    });
+
+    test('successful delete completes queued transaction delete', () async {
+      final String? entryId = await outboxRepository.queueDeleteTransaction(
+        transactionId: 'tx-del',
+      );
+      final SyncEngine engine = SyncEngine(
+        outboxRepository: outboxRepository,
+        transactionGateway: _FakeTransactionSyncGateway(onDelete: (_) async {}),
+        conflictPolicy: conflictPolicy,
+        clock: () => now,
+      );
+
+      final SyncRunResult result = await engine.processPending();
+      final OutboxEntry outbox = (await outboxRepository.findOutboxEntry(
+        entryId!,
+      ))!;
+
+      expect(result.succeededEntries, 1);
+      expect(outbox.status, 'completed');
+    });
+
+    test(
+      'update retryable errors mark queued entry failed with backoff',
+      () async {
+        final String? entryId = await outboxRepository.queueUpdateTransaction(
+          transactionId: 'tx-retry',
+          draft: EntryDraft(
+            type: TransactionType.income,
+            occurredOn: DateTime(2026, 4, 21),
+            amountMinor: 22000,
+            categoryId: 'c1111111-1111-4111-8111-111111111111',
+            paymentMethod: PaymentMethodType.cash,
+          ),
+          categoryType: CategoryType.income,
+        );
+        final SyncEngine engine = SyncEngine(
+          outboxRepository: outboxRepository,
+          transactionGateway: _FakeTransactionSyncGateway(
+            onUpdate: (_) async => throw TimeoutException('network timeout'),
+          ),
+          conflictPolicy: conflictPolicy,
+          clock: () => now,
+        );
+
+        final SyncRunResult result = await engine.processPending();
+        final OutboxEntry outbox = (await outboxRepository.findOutboxEntry(
+          entryId!,
+        ))!;
+
+        expect(result.retryableFailures, 1);
+        expect(outbox.status, 'failed');
+        expect(outbox.attemptCount, 1);
+        expect(
+          outbox.nextRetryAt?.toUtc(),
+          now.add(const Duration(seconds: 30)),
+        );
+      },
+    );
+
+    test(
+      'update followed by delete only flushes delete and never replays stale update',
+      () async {
+        int updateCalls = 0;
+        int deleteCalls = 0;
+
+        await outboxRepository.queueUpdateTransaction(
+          transactionId: 'tx-mixed',
+          draft: EntryDraft(
+            type: TransactionType.expense,
+            occurredOn: DateTime(2026, 4, 21),
+            amountMinor: 7300,
+            categoryId: 'c1111111-1111-4111-8111-111111111111',
+            paymentMethod: PaymentMethodType.card,
+            vendor: 'Stale update',
+          ),
+          categoryType: CategoryType.expense,
+        );
+        final String? deleteEntryId = await outboxRepository
+            .queueDeleteTransaction(transactionId: 'tx-mixed');
+
+        final SyncEngine engine = SyncEngine(
+          outboxRepository: outboxRepository,
+          transactionGateway: _FakeTransactionSyncGateway(
+            onUpdate: (_) async {
+              updateCalls += 1;
+            },
+            onDelete: (_) async {
+              deleteCalls += 1;
+            },
+          ),
+          conflictPolicy: conflictPolicy,
+          clock: () => now,
+        );
+
+        final SyncRunResult result = await engine.processPending();
+        final List<PendingOutboxEntry> pending = await outboxRepository
+            .pendingEntries();
+        final OutboxEntry deleteEntry = (await outboxRepository.findOutboxEntry(
+          deleteEntryId!,
+        ))!;
+
+        expect(result.succeededEntries, 1);
+        expect(updateCalls, 0);
+        expect(deleteCalls, 1);
+        expect(deleteEntry.status, 'completed');
+        expect(pending, isEmpty);
+      },
+    );
   });
 }

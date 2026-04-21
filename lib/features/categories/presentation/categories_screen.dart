@@ -9,12 +9,14 @@ import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../core/domain/types.dart' show DomainValidationException;
 import '../../../data/app_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_bottom_sheet.dart';
 import '../../../shared/hi_fi/hi_fi_button.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_category_row.dart';
 import '../../../shared/hi_fi/hi_fi_filter_chip.dart';
 import '../../../shared/hi_fi/hi_fi_input_field.dart';
+import '../../../shared/overlay/app_overlay.dart';
 import 'category_catalog.dart';
 
 class CategoriesScreen extends ConsumerStatefulWidget {
@@ -51,192 +53,14 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   int get _incomeCount => _incomeState.asData?.value.length ?? 0;
 
   Future<void> _openEditor({CategoryData? category}) async {
-    final TextEditingController controller = TextEditingController(
-      text: category?.name ?? '',
-    );
-    String? errorText;
-    bool saving = false;
-    bool archiving = false;
     final CategoryType categoryType = category?.type ?? _activeType;
 
-    await showModalBottomSheet<void>(
+    await showAppModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (BuildContext sheetContext) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            final NavigatorState navigator = Navigator.of(sheetContext);
-
-            Future<void> save() async {
-              final String name = controller.text.trim();
-              if (name.isEmpty) {
-                setSheetState(
-                  () => errorText = 'Category name cannot be empty.',
-                );
-                return;
-              }
-
-              setSheetState(() => saving = true);
-              try {
-                await ref
-                    .read(giderRepositoryProvider)
-                    .saveCategory(
-                      id: category?.id,
-                      type: categoryType,
-                      name: name,
-                    );
-                ref.read(refreshKeyProvider.notifier).state++;
-                if (!mounted) {
-                  return;
-                }
-                navigator.pop();
-              } on DomainValidationException catch (error) {
-                setSheetState(() => errorText = error.message);
-              } on AuthException catch (error) {
-                _showErrorSnack(error.message);
-              } finally {
-                if (mounted) {
-                  setSheetState(() => saving = false);
-                }
-              }
-            }
-
-            Future<void> archive() async {
-              if (category == null) {
-                return;
-              }
-
-              setSheetState(() => archiving = true);
-              try {
-                await ref
-                    .read(giderRepositoryProvider)
-                    .archiveCategory(id: category.id);
-                ref.read(refreshKeyProvider.notifier).state++;
-                if (!mounted) {
-                  return;
-                }
-                navigator.pop();
-              } on DomainValidationException catch (error) {
-                _showErrorSnack(error.message);
-              } on AuthException catch (error) {
-                _showErrorSnack(error.message);
-              } finally {
-                if (mounted) {
-                  setSheetState(() => archiving = false);
-                }
-              }
-            }
-
-            final bool busy = saving || archiving;
-
-            return HiFiBottomSheet(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    category == null ? 'NEW CATEGORY' : 'EDIT CATEGORY',
-                    style: AppTypography.eye,
-                  ),
-                  const SizedBox(height: 4),
-                  RichText(
-                    text: TextSpan(
-                      style: AppTypography.h2,
-                      children: <InlineSpan>[
-                        TextSpan(
-                          text: category == null ? 'Create ' : 'Rename ',
-                        ),
-                        TextSpan(
-                          text: categoryType.label.toLowerCase(),
-                          style: AppTypography.h2.copyWith(
-                            color: AppColors.brand,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const TextSpan(text: ' category'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  HiFiInputField(
-                    controller: controller,
-                    label: 'Name',
-                    hint: categoryType == CategoryType.expense
-                        ? 'e.g. Packaging'
-                        : 'e.g. Card Sales',
-                    errorText: errorText,
-                    autofocus: false,
-                    readOnly: busy,
-                    onChanged: (_) {
-                      if (errorText != null) {
-                        setSheetState(() => errorText = null);
-                      }
-                    },
-                    onSubmitted: (_) => save(),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    category == null
-                        ? 'New categories appear immediately in the management list.'
-                        : '${category.entryCount} entries · ${_formatCurrency(category.monthlyTotalMinor)} this month',
-                    style: AppTypography.bodySoft.copyWith(height: 1.45),
-                  ),
-                  if (category != null) ...<Widget>[
-                    const SizedBox(height: AppSpacing.md),
-                    HiFiButton(
-                      label: 'Archive category',
-                      variant: HiFiButtonVariant.expense,
-                      loading: archiving,
-                      onPressed: busy ? null : archive,
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: HiFiButton(
-                          label: 'Cancel',
-                          variant: HiFiButtonVariant.ghost,
-                          onPressed: busy
-                              ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Expanded(
-                        flex: 16,
-                        child: HiFiButton(
-                          label: category == null
-                              ? 'Save category'
-                              : 'Save changes',
-                          loading: saving,
-                          onPressed: busy ? null : save,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    controller.dispose();
-  }
-
-  void _showErrorSnack(String message) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.expense,
-        content: Text(message),
-      ),
+      builder: (_) =>
+          _CategoryEditorSheet(category: category, categoryType: categoryType),
     );
   }
 
@@ -262,14 +86,22 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text('No categories yet', style: AppTypography.h2),
+                  Text(
+                    context.strings.noCategoriesYet,
+                    style: AppTypography.h2,
+                  ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Create your first ${_activeType.label.toLowerCase()} category for this business.',
+                    context.strings.createFirstCategory(
+                      context.strings.categoryTypeLabel(_activeType),
+                    ),
                     style: AppTypography.bodySoft.copyWith(height: 1.45),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  HiFiButton(label: 'Create category', onPressed: _openEditor),
+                  HiFiButton(
+                    label: context.strings.createCategory,
+                    onPressed: _openEditor,
+                  ),
                 ],
               ),
             ),
@@ -285,7 +117,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   tone: categories[i].tone,
                   title: categories[i].name,
                   meta:
-                      '${categories[i].entryCount} entries · ${_formatCurrency(categories[i].monthlyTotalMinor)} this month',
+                      '${context.strings.entriesCount(categories[i].entryCount)} · ${_formatCurrency(categories[i].monthlyTotalMinor)} ${context.strings.thisMonth.toLowerCase()}',
                   showDivider: i != categories.length - 1,
                   onTap: () => _openEditor(category: categories[i]),
                 ),
@@ -303,11 +135,17 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text('We could not load categories.', style: AppTypography.h2),
+              Text(
+                context.strings.categoriesLoadError(context.strings.categories),
+                style: AppTypography.h2,
+              ),
               const SizedBox(height: AppSpacing.xs),
               Text(error.toString(), style: AppTypography.bodySoft),
               const SizedBox(height: AppSpacing.md),
-              HiFiButton(label: 'Try again', onPressed: _retryActiveList),
+              HiFiButton(
+                label: context.strings.tryAgain,
+                onPressed: _retryActiveList,
+              ),
             ],
           ),
         ),
@@ -350,7 +188,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                             ),
                             const SizedBox(width: 2),
                             Text(
-                              'Settings',
+                              context.strings.settings,
                               style: AppTypography.bodySoft.copyWith(
                                 fontSize: 13,
                               ),
@@ -360,7 +198,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                       ),
                     ),
                     const Spacer(),
-                    _ActionPill(label: 'New', onTap: _openEditor),
+                    _ActionPill(
+                      label: context.strings.newLabel,
+                      onTap: _openEditor,
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.smTight),
@@ -369,7 +210,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                     style: AppTypography.h1,
                     children: <InlineSpan>[
                       TextSpan(
-                        text: 'Categories',
+                        text: context.strings.categories,
                         style: AppTypography.h1.copyWith(
                           color: AppColors.brand,
                           fontStyle: FontStyle.italic,
@@ -380,7 +221,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Manage expense and income tags',
+                  context.strings.manageExpenseIncomeTags,
                   style: AppTypography.lbl,
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -498,13 +339,13 @@ class _CategorySwitchHeaderDelegate extends SliverPersistentHeaderDelegate {
           child: Row(
             children: <Widget>[
               HiFiFilterChip(
-                label: 'Expense · $expenseCount',
+                label: '${context.strings.expense} · $expenseCount',
                 selected: selectedKind == CategoryKind.expense,
                 onTap: () => onSelected(CategoryKind.expense),
               ),
               const SizedBox(width: 6),
               HiFiFilterChip(
-                label: 'Income · $incomeCount',
+                label: '${context.strings.income} · $incomeCount',
                 selected: selectedKind == CategoryKind.income,
                 onTap: () => onSelected(CategoryKind.income),
               ),
@@ -520,5 +361,209 @@ class _CategorySwitchHeaderDelegate extends SliverPersistentHeaderDelegate {
     return selectedKind != oldDelegate.selectedKind ||
         expenseCount != oldDelegate.expenseCount ||
         incomeCount != oldDelegate.incomeCount;
+  }
+}
+
+class _CategoryEditorSheet extends ConsumerStatefulWidget {
+  const _CategoryEditorSheet({
+    required this.category,
+    required this.categoryType,
+  });
+
+  final CategoryData? category;
+  final CategoryType categoryType;
+
+  @override
+  ConsumerState<_CategoryEditorSheet> createState() =>
+      _CategoryEditorSheetState();
+}
+
+class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
+  static final NumberFormat _currencyFormatter = NumberFormat.currency(
+    locale: 'en_GB',
+    symbol: '£',
+    decimalDigits: 0,
+  );
+
+  late final TextEditingController _controller;
+
+  String? _errorText;
+  bool _saving = false;
+  bool _archiving = false;
+
+  bool get _isEditing => widget.category != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.category?.name ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _formatCurrency(int amountMinor) {
+    return _currencyFormatter.format(amountMinor / 100);
+  }
+
+  void _showErrorSnack(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.expense,
+        content: Text(message),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final String name = _controller.text.trim();
+    if (name.isEmpty) {
+      setState(() => _errorText = context.strings.categoryNameCannotBeEmpty);
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(giderRepositoryProvider)
+          .saveCategory(
+            id: widget.category?.id,
+            type: widget.categoryType,
+            name: name,
+          );
+      ref.read(refreshKeyProvider.notifier).state++;
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+    } on DomainValidationException catch (error) {
+      setState(() => _errorText = error.message);
+    } on AuthException catch (error) {
+      _showErrorSnack(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _archive() async {
+    final CategoryData? category = widget.category;
+    if (category == null) {
+      return;
+    }
+
+    setState(() => _archiving = true);
+    try {
+      await ref.read(giderRepositoryProvider).archiveCategory(id: category.id);
+      ref.read(refreshKeyProvider.notifier).state++;
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+    } on DomainValidationException catch (error) {
+      _showErrorSnack(error.message);
+    } on AuthException catch (error) {
+      _showErrorSnack(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _archiving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final CategoryData? category = widget.category;
+    final bool busy = _saving || _archiving;
+
+    return HiFiBottomSheet(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            _isEditing
+                ? context.strings.editCategory.toUpperCase()
+                : context.strings.newCategory.toUpperCase(),
+            style: AppTypography.eye,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _isEditing
+                ? context.strings.renameCategory(
+                    context.strings.categoryTypeLabel(widget.categoryType),
+                  )
+                : context.strings.createTypeCategory(
+                    context.strings.categoryTypeLabel(widget.categoryType),
+                  ),
+            style: AppTypography.h2,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          HiFiInputField(
+            controller: _controller,
+            label: context.strings.name,
+            hint: widget.categoryType == CategoryType.expense
+                ? context.strings.packagingHint
+                : context.strings.cardSalesHint,
+            errorText: _errorText,
+            autofocus: false,
+            readOnly: busy,
+            onChanged: (_) {
+              if (_errorText != null) {
+                setState(() => _errorText = null);
+              }
+            },
+            onSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            category == null
+                ? context.strings.newCategoryAppearsImmediately
+                : '${context.strings.entriesCount(category.entryCount)} · ${_formatCurrency(category.monthlyTotalMinor)} ${context.strings.thisMonth.toLowerCase()}',
+            style: AppTypography.bodySoft.copyWith(height: 1.45),
+          ),
+          if (category != null) ...<Widget>[
+            const SizedBox(height: AppSpacing.md),
+            HiFiButton(
+              label: context.strings.archiveCategory,
+              variant: HiFiButtonVariant.expense,
+              loading: _archiving,
+              onPressed: busy ? null : _archive,
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: HiFiButton(
+                  label: context.strings.cancel,
+                  variant: HiFiButtonVariant.ghost,
+                  onPressed: busy ? null : () => Navigator.of(context).pop(),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                flex: 16,
+                child: HiFiButton(
+                  label: _isEditing
+                      ? context.strings.saveChanges
+                      : context.strings.saveCategory,
+                  loading: _saving,
+                  onPressed: busy ? null : _save,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

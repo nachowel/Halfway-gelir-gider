@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../../app/providers/app_providers.dart';
 import '../../../app/router/route_access.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_input.dart';
 import '../../../shared/hi_fi/hi_fi_screen_background.dart';
@@ -97,11 +100,10 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
   Future<void> _submit() async {
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
+    final AppLocalizations strings = context.strings;
     setState(() {
-      _emailError = email.contains('@') ? null : 'Enter a valid email.';
-      _passwordError = password.length >= 6
-          ? null
-          : 'Password must be at least 6 characters.';
+      _emailError = email.contains('@') ? null : strings.enterValidEmail;
+      _passwordError = password.length >= 6 ? null : strings.passwordMinLength;
     });
     if (_emailError != null || _passwordError != null) return;
 
@@ -110,15 +112,9 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
       await ref
           .watch(giderRepositoryProvider)
           .signIn(email: email, password: password);
-    } on AuthException catch (error) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.expense,
-          content: Text(error.message),
-        ),
-      );
+      _showAuthError(context, error);
     } finally {
       if (mounted) {
         setState(() => _emailSubmitting = false);
@@ -130,15 +126,9 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
     setState(() => _googleSubmitting = true);
     try {
       await ref.watch(giderRepositoryProvider).signInWithGoogle();
-    } on AuthException catch (error) {
+    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.expense,
-          content: Text(error.message),
-        ),
-      );
+      _showAuthError(context, error);
     } finally {
       if (mounted) {
         setState(() => _googleSubmitting = false);
@@ -148,6 +138,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     return _AuthCardFrame(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -156,7 +147,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
           Text('GIDER', style: AppTypography.eye),
           const SizedBox(height: 14),
           Text(
-            'Sign in',
+            strings.signIn,
             style: AppTypography.h1.copyWith(
               fontSize: 36,
               height: 1.0,
@@ -166,7 +157,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Use your email or Google to get back to this week.',
+            strings.useEmailOrGoogle,
             style: AppTypography.body.copyWith(
               height: 1.35,
               fontWeight: FontWeight.w400,
@@ -175,7 +166,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Email',
+            strings.email,
             style: AppTypography.meta.copyWith(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
@@ -204,7 +195,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Password',
+            strings.password,
             style: AppTypography.meta.copyWith(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
@@ -252,16 +243,16 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
           ),
           const SizedBox(height: 16),
           AppButton(
-            label: 'Sign in',
+            label: strings.signIn,
             onPressed: _busy ? null : _submit,
             size: AppButtonSize.compact,
             loading: _emailSubmitting,
           ),
           const SizedBox(height: 9),
-          _QuietAuthSeparator(label: 'or continue with'),
+          _QuietAuthSeparator(label: strings.orContinueWith),
           const SizedBox(height: 8),
           AppButton(
-            label: 'Continue with Google',
+            label: strings.continueWithGoogle,
             onPressed: _busy ? null : _submitGoogle,
             variant: AppButtonVariant.secondary,
             size: AppButtonSize.compact,
@@ -275,7 +266,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
               spacing: 4,
               children: <Widget>[
                 Text(
-                  'Don’t have an account?',
+                  strings.dontHaveAccount,
                   style: AppTypography.bodySoft.copyWith(
                     fontSize: 11.8,
                     color: AppColors.inkSoft,
@@ -304,7 +295,7 @@ class _LoginCardState extends ConsumerState<_LoginCard> {
                       decorationThickness: 1.1,
                     ),
                   ),
-                  child: const Text('Create account'),
+                  child: Text(strings.createAccount),
                 ),
               ],
             ),
@@ -457,14 +448,11 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
     final String businessName = _businessController.text.trim();
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
+    final AppLocalizations strings = context.strings;
     setState(() {
-      _businessError = businessName.isEmpty
-          ? 'Enter your business name.'
-          : null;
-      _emailError = email.contains('@') ? null : 'Enter a valid email.';
-      _passwordError = password.length >= 6
-          ? null
-          : 'Password must be at least 6 characters.';
+      _businessError = businessName.isEmpty ? strings.enterBusinessName : null;
+      _emailError = email.contains('@') ? null : strings.enterValidEmail;
+      _passwordError = password.length >= 6 ? null : strings.passwordMinLength;
     });
     if (_businessError != null ||
         _emailError != null ||
@@ -480,20 +468,14 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
       if (!mounted) return;
       context.go(buildAuthLocation(kLoginRoute, from: widget.from));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Account created. You can sign in now.'),
-        ),
-      );
-    } on AuthException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.expense,
-          content: Text(error.message),
+          content: Text(strings.accountCreatedSignIn),
         ),
       );
+    } catch (error) {
+      if (!mounted) return;
+      _showAuthError(context, error);
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -503,6 +485,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     return _AuthCardFrame(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -541,16 +524,16 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
                   size: 15,
                   color: AppColors.inkFade,
                 ),
-                label: const Text('Back'),
+                label: Text(strings.backToLogin),
               ),
               const Spacer(),
             ],
           ),
           const SizedBox(height: 10),
-          Text('CREATE ACCOUNT', style: AppTypography.eye),
+          Text(strings.createAccount.toUpperCase(), style: AppTypography.eye),
           const SizedBox(height: 8),
           Text(
-            'Create your account',
+            strings.createYourAccount,
             style: AppTypography.h1.copyWith(
               fontSize: 30,
               height: 1.04,
@@ -560,7 +543,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Set up your business and start tracking.',
+            strings.setupBusinessAndTrack,
             style: AppTypography.body.copyWith(
               height: 1.32,
               fontWeight: FontWeight.w400,
@@ -569,7 +552,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Business name',
+            strings.businessName,
             style: AppTypography.meta.copyWith(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
@@ -582,7 +565,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
             readOnly: _submitting,
             textInputAction: TextInputAction.next,
             errorText: _businessError,
-            helper: 'Shown on your dashboard and in settings.',
+            helper: strings.shownOnDashboard,
             fillColor: AppColors.surface.withValues(alpha: 0.92),
             containerPadding: const EdgeInsets.symmetric(
               horizontal: 10,
@@ -598,7 +581,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Email',
+            strings.email,
             style: AppTypography.meta.copyWith(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
@@ -627,7 +610,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Password',
+            strings.password,
             style: AppTypography.meta.copyWith(
               fontSize: 11.5,
               fontWeight: FontWeight.w600,
@@ -675,7 +658,7 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
           ),
           const SizedBox(height: 16),
           AppButton(
-            label: 'Create account',
+            label: strings.createAccount,
             onPressed: _submitting ? null : _submit,
             size: AppButtonSize.compact,
             loading: _submitting,
@@ -684,4 +667,49 @@ class _SignUpCardState extends ConsumerState<_SignUpCard> {
       ),
     );
   }
+}
+
+void _showAuthError(BuildContext context, Object error) {
+  if (!context.mounted) {
+    return;
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.expense,
+      content: Text(_normalizeAuthErrorMessage(context, error)),
+    ),
+  );
+}
+
+String _normalizeAuthErrorMessage(BuildContext context, Object error) {
+  final AppLocalizations strings = context.strings;
+  if (_isNetworkError(error)) {
+    return strings.noInternetTryAgain;
+  }
+
+  if (error is AuthException) {
+    return error.message;
+  }
+
+  return strings.genericErrorTryAgain;
+}
+
+bool _isNetworkError(Object error) {
+  if (error is SocketException) {
+    return true;
+  }
+
+  final String message = switch (error) {
+    AuthException authError => authError.message.toLowerCase(),
+    _ => error.toString().toLowerCase(),
+  };
+
+  return message.contains('socketexception') ||
+      message.contains('failed host lookup') ||
+      message.contains('connection refused') ||
+      message.contains('connection reset') ||
+      message.contains('network is unreachable') ||
+      message.contains('no address associated with hostname');
 }

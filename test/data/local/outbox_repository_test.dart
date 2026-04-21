@@ -95,5 +95,77 @@ void main() {
       expect(entry.nextRetryAt?.toUtc(), retryAt);
       expect(entry.lastError, 'network timeout');
     });
+
+    test(
+      'update queue stores dedupe key and supersedes older update',
+      () async {
+        await repository.queueUpdateTransaction(
+          transactionId: 'tx-1',
+          draft: EntryDraft(
+            type: TransactionType.expense,
+            occurredOn: DateTime(2026, 4, 20),
+            amountMinor: 4200,
+            categoryId: 'category-rent',
+            paymentMethod: PaymentMethodType.card,
+            vendor: 'First vendor',
+          ),
+          categoryType: CategoryType.expense,
+        );
+
+        await repository.queueUpdateTransaction(
+          transactionId: 'tx-1',
+          draft: EntryDraft(
+            type: TransactionType.expense,
+            occurredOn: DateTime(2026, 4, 21),
+            amountMinor: 5100,
+            categoryId: 'category-rent',
+            paymentMethod: PaymentMethodType.card,
+            vendor: 'Second vendor',
+          ),
+          categoryType: CategoryType.expense,
+        );
+
+        final List<PendingOutboxEntry> entries = await repository
+            .pendingEntries();
+
+        expect(entries, hasLength(1));
+        expect(entries.single.operation, OutboxOperationType.updateTransaction);
+        expect(entries.single.dedupeKey, 'transaction:update:tx-1');
+        expect(entries.single.payload['vendor'], 'Second vendor');
+        expect(entries.single.payload['amount_minor'], 5100);
+      },
+    );
+
+    test(
+      'delete queue removes open updates and ignores duplicate delete',
+      () async {
+        await repository.queueUpdateTransaction(
+          transactionId: 'tx-2',
+          draft: EntryDraft(
+            type: TransactionType.expense,
+            occurredOn: DateTime(2026, 4, 20),
+            amountMinor: 4200,
+            categoryId: 'category-rent',
+            paymentMethod: PaymentMethodType.card,
+          ),
+          categoryType: CategoryType.expense,
+        );
+
+        final String? deleteEntryId = await repository.queueDeleteTransaction(
+          transactionId: 'tx-2',
+        );
+        final String? duplicateDeleteId = await repository
+            .queueDeleteTransaction(transactionId: 'tx-2');
+        final List<PendingOutboxEntry> entries = await repository
+            .pendingEntries();
+
+        expect(deleteEntryId, isNotNull);
+        expect(duplicateDeleteId, isNull);
+        expect(entries, hasLength(1));
+        expect(entries.single.id, deleteEntryId);
+        expect(entries.single.operation, OutboxOperationType.deleteTransaction);
+        expect(entries.single.dedupeKey, 'transaction:delete:tx-2');
+      },
+    );
   });
 }

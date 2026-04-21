@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../app/theme/app_tokens.dart';
 import '../../app/theme/app_typography.dart';
 import 'app_form_section_card.dart';
@@ -56,7 +57,7 @@ class _TodayPill extends StatelessWidget {
         border: Border.all(color: AppColors.borderSoft),
       ),
       child: Text(
-        'Today',
+        context.strings.today,
         style: AppTypography.meta.copyWith(
           fontSize: 11,
           fontWeight: FontWeight.w600,

@@ -6,7 +6,6 @@ enum CategoryType { income, expense }
 
 extension CategoryTypeX on CategoryType {
   String get dbValue => name;
-  String get label => this == CategoryType.income ? 'Income' : 'Expense';
 }
 
 enum TransactionType { income, expense }
@@ -23,13 +22,6 @@ extension PaymentMethodTypeX on PaymentMethodType {
     PaymentMethodType.card => 'card',
     PaymentMethodType.bankTransfer => 'bank_transfer',
     PaymentMethodType.other => 'other',
-  };
-
-  String get label => switch (this) {
-    PaymentMethodType.cash => 'Cash',
-    PaymentMethodType.card => 'Card',
-    PaymentMethodType.bankTransfer => 'Transfer',
-    PaymentMethodType.other => 'Other',
   };
 
   static PaymentMethodType fromDb(String value) => switch (value) {
@@ -50,13 +42,6 @@ extension SourcePlatformTypeX on SourcePlatformType {
     SourcePlatformType.other => 'other',
   };
 
-  String get label => switch (this) {
-    SourcePlatformType.direct => 'Direct',
-    SourcePlatformType.uber => 'Uber',
-    SourcePlatformType.justEat => 'Just Eat',
-    SourcePlatformType.other => 'Other',
-  };
-
   static SourcePlatformType fromDb(String value) => switch (value) {
     'direct' => SourcePlatformType.direct,
     'uber' => SourcePlatformType.uber,
@@ -69,12 +54,6 @@ enum RecurringFrequencyType { weekly, monthly, quarterly, yearly }
 
 extension RecurringFrequencyTypeX on RecurringFrequencyType {
   String get dbValue => name;
-  String get label => switch (this) {
-    RecurringFrequencyType.weekly => 'Weekly',
-    RecurringFrequencyType.monthly => 'Monthly',
-    RecurringFrequencyType.quarterly => 'Quarterly',
-    RecurringFrequencyType.yearly => 'Yearly',
-  };
 
   static RecurringFrequencyType fromDb(String value) => switch (value) {
     'weekly' => RecurringFrequencyType.weekly,
@@ -205,6 +184,7 @@ class DashboardSnapshot {
     required this.cashIncomeMinor,
     required this.cardIncomeMinor,
     required this.netDeltaMinor,
+    required this.reservePlanner,
     required this.recentTransactions,
     required this.upcomingRecurring,
   });
@@ -215,6 +195,7 @@ class DashboardSnapshot {
   final int cashIncomeMinor;
   final int cardIncomeMinor;
   final int netDeltaMinor;
+  final ReservePlannerSnapshot reservePlanner;
   final List<TransactionData> recentTransactions;
   final List<RecurringUiItem> upcomingRecurring;
 
@@ -237,6 +218,22 @@ class ReportsSnapshot {
   final List<ReportBreakdownItem> breakdown;
 
   int get netMinor => incomeMinor - expenseMinor;
+}
+
+class MonthlyReportsDataset {
+  const MonthlyReportsDataset({
+    required this.selectedMonth,
+    required this.trendMonthCount,
+    required this.transactions,
+    required this.expenseCategoryIcons,
+    required this.incomeCategoryIcons,
+  });
+
+  final DateTime selectedMonth;
+  final int trendMonthCount;
+  final List<TransactionData> transactions;
+  final Map<String, IconData> expenseCategoryIcons;
+  final Map<String, IconData> incomeCategoryIcons;
 }
 
 class ReportBreakdownItem {
@@ -267,6 +264,45 @@ class RecurringUiItem {
   final String statusLabel;
   final String frequencyMeta;
   final IconData icon;
+}
+
+class ReservePlannerItem {
+  const ReservePlannerItem({
+    required this.id,
+    required this.name,
+    required this.amountMinor,
+    required this.frequency,
+    required this.nextDueOn,
+    required this.daysUntilDue,
+    required this.weeksUntilDue,
+    required this.suggestedWeeklyReserveMinor,
+  });
+
+  final String id;
+  final String name;
+  final int amountMinor;
+  final RecurringFrequencyType frequency;
+  final DateTime nextDueOn;
+  final int daysUntilDue;
+  final int weeksUntilDue;
+  final int suggestedWeeklyReserveMinor;
+}
+
+class ReservePlannerSnapshot {
+  const ReservePlannerSnapshot({
+    required this.totalSuggestedWeeklyReserveMinor,
+    required this.eligibleItemCount,
+    required this.items,
+  });
+
+  const ReservePlannerSnapshot.empty()
+    : totalSuggestedWeeklyReserveMinor = 0,
+      eligibleItemCount = 0,
+      items = const <ReservePlannerItem>[];
+
+  final int totalSuggestedWeeklyReserveMinor;
+  final int eligibleItemCount;
+  final List<ReservePlannerItem> items;
 }
 
 class RecurringSummarySnapshot {
@@ -312,6 +348,7 @@ class RecurringDraft {
     required this.amountMinor,
     required this.frequency,
     required this.nextDueOn,
+    this.reserveEnabled = false,
     this.reminderDaysBefore = 3,
     this.defaultPaymentMethod,
     this.note,
@@ -322,6 +359,7 @@ class RecurringDraft {
   final int amountMinor;
   final RecurringFrequencyType frequency;
   final DateTime nextDueOn;
+  final bool reserveEnabled;
   final int reminderDaysBefore;
   final PaymentMethodType? defaultPaymentMethod;
   final String? note;

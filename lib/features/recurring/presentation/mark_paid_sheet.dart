@@ -3,26 +3,29 @@ import 'package:flutter/services.dart';
 
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../data/app_models.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_bottom_sheet.dart';
 import '../../../shared/hi_fi/hi_fi_button.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_filter_chip.dart';
 import '../../../shared/hi_fi/hi_fi_input_field.dart';
 import '../../../shared/hi_fi/hi_fi_pill.dart';
+import '../../../shared/overlay/app_overlay.dart';
 
 enum RecurringPaymentMethod { cash, card, bankTransfer, other }
 
 extension RecurringPaymentMethodX on RecurringPaymentMethod {
-  String get label {
+  String label(AppLocalizations strings) {
     switch (this) {
       case RecurringPaymentMethod.cash:
-        return 'Cash';
+        return strings.cash;
       case RecurringPaymentMethod.card:
-        return 'Card';
+        return strings.card;
       case RecurringPaymentMethod.bankTransfer:
-        return 'Bank transfer';
+        return strings.paymentMethodLabel(PaymentMethodType.bankTransfer);
       case RecurringPaymentMethod.other:
-        return 'Other';
+        return strings.paymentMethodLabel(PaymentMethodType.other);
     }
   }
 }
@@ -64,7 +67,7 @@ Future<void> showMarkPaidSheet(
   required RecurringPaymentDraft draft,
   required Future<void> Function(RecurringPaymentResult result) onConfirm,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     barrierColor: const Color(0x59112214),
@@ -128,33 +131,6 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
     return '£$whole.${parts.last}';
   }
 
-  String _formatDate(DateTime value) {
-    const List<String> days = <String>[
-      'Mon',
-      'Tue',
-      'Wed',
-      'Thu',
-      'Fri',
-      'Sat',
-      'Sun',
-    ];
-    const List<String> months = <String>[
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${days[value.weekday - 1]} ${value.day} ${months[value.month - 1]}';
-  }
-
   int? _parseMinorAmount() {
     final String normalized = _amountController.text
         .replaceAll(',', '.')
@@ -166,7 +142,7 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
 
   Future<void> _pickDate() async {
     final DateTime now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+    final DateTime? picked = await showAppDatePicker(
       context: context,
       initialDate: _paidOn,
       firstDate: DateTime(now.year - 1),
@@ -193,13 +169,14 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
   }
 
   Future<void> _submit() async {
+    final AppLocalizations strings = context.strings;
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     final int? amountMinor = _parseMinorAmount();
     final bool invalidAmount = amountMinor == null || amountMinor <= 0;
     final bool missingMethod = _method == null;
 
     setState(() {
-      _amountError = invalidAmount ? 'Amount must be greater than £0.00' : null;
+      _amountError = invalidAmount ? strings.amountMustBeGreaterThanZero : null;
       if (_submitState == _SubmitState.error) {
         _submitState = _SubmitState.idle;
       }
@@ -208,8 +185,8 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
     if (invalidAmount || missingMethod) {
       if (missingMethod) {
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Choose a payment method to continue.'),
+          SnackBar(
+            content: Text(strings.choosePaymentMethodToContinue),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -237,7 +214,9 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
       Navigator.of(context).pop();
       messenger.showSnackBar(
         SnackBar(
-          content: Text('${_formatCurrency(amountMinor)} payment recorded'),
+          content: Text(
+            strings.recordedPaymentMessage(_formatCurrency(amountMinor)),
+          ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.income,
         ),
@@ -246,8 +225,8 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
       if (!mounted) return;
       setState(() => _submitState = _SubmitState.error);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Payment could not be recorded. Try again.'),
+        SnackBar(
+          content: Text(strings.paymentRecordFailed),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.expense,
         ),
@@ -260,6 +239,7 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     final bool changedAmount =
         _amountController.text.trim() !=
         _formatInputAmount(widget.draft.plannedAmountMinor);
@@ -272,23 +252,11 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('CONFIRM PAYMENT', style: AppTypography.eye),
+          Text(strings.confirmPayment.toUpperCase(), style: AppTypography.eye),
           const SizedBox(height: 4),
-          RichText(
-            text: TextSpan(
-              style: AppTypography.h2,
-              children: <InlineSpan>[
-                const TextSpan(text: 'Mark '),
-                TextSpan(
-                  text: widget.draft.title,
-                  style: AppTypography.h2.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: AppColors.brand,
-                  ),
-                ),
-                const TextSpan(text: ' as paid?'),
-              ],
-            ),
+          Text(
+            strings.markAsPaidQuestion(widget.draft.title),
+            style: AppTypography.h2,
           ),
           const SizedBox(height: AppSpacing.md),
           Row(
@@ -311,17 +279,17 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
             child: Column(
               children: <Widget>[
                 _SheetSummaryRow(
-                  label: 'Due on',
+                  label: strings.dueOn,
                   trailing: Text(
-                    _formatDate(widget.draft.currentDueDate),
+                    strings.dayMonthShortWeekday(widget.draft.currentDueDate),
                     style: AppTypography.numSm,
                   ),
                 ),
                 const Divider(color: AppColors.borderSoft, height: 14),
                 _SheetSummaryRow(
-                  label: 'Next due',
+                  label: strings.nextDue,
                   trailing: Text(
-                    _formatDate(widget.draft.nextDueDate),
+                    strings.dayMonthShortWeekday(widget.draft.nextDueDate),
                     style: AppTypography.numSm.copyWith(color: AppColors.brand),
                   ),
                 ),
@@ -330,18 +298,20 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
           ),
           const SizedBox(height: AppSpacing.sm),
           _DateField(
-            label: 'Paid on',
-            value: _formatDate(_paidOn),
+            label: strings.paidOn,
+            value: strings.dayMonthShortWeekday(_paidOn),
             onTap: busy ? null : _pickDate,
           ),
           const SizedBox(height: AppSpacing.sm),
           HiFiInputField(
             controller: _amountController,
-            label: 'Amount',
+            label: strings.amount,
             prefix: Text('£', style: AppTypography.input),
             helper: changedAmount
                 ? null
-                : 'Planned amount: ${_formatCurrency(widget.draft.plannedAmountMinor)}',
+                : strings.plannedAmountHelper(
+                    _formatCurrency(widget.draft.plannedAmountMinor),
+                  ),
             errorText: _amountError,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: <TextInputFormatter>[
@@ -356,7 +326,7 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
             },
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text('Payment method', style: AppTypography.lbl),
+          Text(strings.paymentMethod, style: AppTypography.lbl),
           const SizedBox(height: AppSpacing.xs),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -367,7 +337,7 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.xs),
                   child: HiFiFilterChip(
-                    label: method.label,
+                    label: method.label(strings),
                     selected: method == _method,
                     tone: HiFiFilterChipTone.brand,
                     onTap: busy
@@ -380,7 +350,9 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'This logs as an expense and sets next due to ${_formatDate(widget.draft.nextDueDate)}.',
+            strings.paymentContinueMessage(
+              strings.dayMonthShortWeekday(widget.draft.nextDueDate),
+            ),
             style: AppTypography.bodySoft.copyWith(height: 1.45),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -388,7 +360,7 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
             children: <Widget>[
               Expanded(
                 child: HiFiButton(
-                  label: 'Later',
+                  label: strings.later,
                   variant: HiFiButtonVariant.ghost,
                   onPressed: busy ? null : () => Navigator.of(context).pop(),
                 ),
@@ -398,10 +370,10 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
                 flex: 16,
                 child: HiFiButton(
                   label: switch (_submitState) {
-                    _SubmitState.saving => 'Saving…',
-                    _SubmitState.success => 'Saved ✓',
-                    _SubmitState.error => 'Retry save',
-                    _SubmitState.idle => 'Mark paid',
+                    _SubmitState.saving => strings.saving,
+                    _SubmitState.success => strings.saved,
+                    _SubmitState.error => strings.retrySave,
+                    _SubmitState.idle => strings.markPaid,
                   },
                   variant: HiFiButtonVariant.income,
                   leading: const Icon(Icons.check_rounded),

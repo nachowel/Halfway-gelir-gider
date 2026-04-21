@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/app_providers.dart';
 import '../../shared/hi_fi/hi_fi_bottom_sheet.dart';
 import '../../shared/hi_fi/hi_fi_fab.dart';
 import '../../shared/hi_fi/hi_fi_icon_tile.dart';
 import '../../shared/hi_fi/hi_fi_screen_background.dart';
 import '../../shared/layout/mobile_scaffold.dart';
+import '../../shared/overlay/app_overlay.dart';
 import '../../shared/navigation/bottom_nav.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../l10n/app_locale.dart';
+import '../../l10n/app_localizations.dart';
 import '../theme/app_tokens.dart';
 import '../theme/app_typography.dart';
 
@@ -29,28 +34,40 @@ class AppShell extends StatelessWidget {
     return 0;
   }
 
-  static const List<BottomNavItem> _navItems = <BottomNavItem>[
-    BottomNavItem(icon: Icons.home_rounded, label: 'Ozet'),
-    BottomNavItem(icon: Icons.list_alt_rounded, label: 'Islemler'),
-    BottomNavItem(icon: Icons.insert_chart_outlined_rounded, label: 'Raporlar'),
-    BottomNavItem(icon: Icons.settings_outlined, label: 'Ayarlar'),
-  ];
-
-  void _onNavTap(BuildContext context, int index) {
+  String _locationForIndex(int index) {
     switch (index) {
       case 0:
-        context.go('/summary');
+        return '/summary';
       case 1:
-        context.go('/transactions');
+        return '/transactions';
       case 2:
-        context.go('/reports');
+        return '/reports';
       case 3:
-        context.go('/settings');
+        return '/settings';
     }
+    return '/summary';
+  }
+
+  void _onNavTap(BuildContext context, int index) {
+    final String targetLocation = _locationForIndex(index);
+    if (currentLocation == targetLocation) {
+      return;
+    }
+    context.go(targetLocation);
   }
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    final List<BottomNavItem> navItems = <BottomNavItem>[
+      BottomNavItem(icon: Icons.home_rounded, label: strings.dashboardSummary),
+      BottomNavItem(icon: Icons.list_alt_rounded, label: strings.transactions),
+      BottomNavItem(
+        icon: Icons.insert_chart_outlined_rounded,
+        label: strings.reports,
+      ),
+      BottomNavItem(icon: Icons.settings_outlined, label: strings.settings),
+    ];
     final MediaQueryData mq = MediaQuery.of(context);
     final double bottomInset = mq.viewInsets.bottom;
     final double bottomDockInset = bottomInset > 0
@@ -58,6 +75,11 @@ class AppShell extends StatelessWidget {
         : mq.padding.bottom + 16;
     return Scaffold(
       backgroundColor: AppColors.bg,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: _ShellFabSlot(
+        bottomDockInset: bottomDockInset,
+        onPressed: () => _showQuickActions(context),
+      ),
       body: MobileScaffold(
         child: HiFiScreenBackground(
           child: SafeArea(
@@ -70,15 +92,10 @@ class AppShell extends StatelessWidget {
                   right: 14,
                   bottom: bottomDockInset,
                   child: BottomNav(
-                    items: _navItems,
+                    items: navItems,
                     currentIndex: _currentIndex,
                     onTap: (int i) => _onNavTap(context, i),
                   ),
-                ),
-                Positioned(
-                  right: 20,
-                  bottom: bottomDockInset + 76,
-                  child: HiFiFab(onPressed: () => _showQuickActions(context)),
                 ),
               ],
             ),
@@ -88,28 +105,95 @@ class AppShell extends StatelessWidget {
     );
   }
 
-  void _showQuickActions(BuildContext context) {
-    showModalBottomSheet<void>(
+  Future<void> _showQuickActions(BuildContext context) async {
+    final _QuickAction? action = await showAppModalBottomSheet<_QuickAction>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (BuildContext sheetContext) {
         return _QuickActionsSheet(
           onClose: () => Navigator.of(sheetContext).pop(),
-          onIncomeTap: () {
-            Navigator.of(sheetContext).pop();
-            context.push('/entry/income');
-          },
-          onExpenseTap: () {
-            Navigator.of(sheetContext).pop();
-            context.push('/entry/expense');
-          },
-          onRecurringTap: () {
-            Navigator.of(sheetContext).pop();
-            context.push('/settings/recurring');
-          },
+          onIncomeTap: () =>
+              Navigator.of(sheetContext).pop(_QuickAction.income),
+          onExpenseTap: () =>
+              Navigator.of(sheetContext).pop(_QuickAction.expense),
+          onRecurringTap: () =>
+              Navigator.of(sheetContext).pop(_QuickAction.recurring),
         );
       },
+    );
+
+    if (!context.mounted || action == null) {
+      return;
+    }
+
+    switch (action) {
+      case _QuickAction.income:
+        context.push('/entry/income');
+        return;
+      case _QuickAction.expense:
+        context.push('/entry/expense');
+        return;
+      case _QuickAction.recurring:
+        context.push('/settings/recurring');
+        return;
+    }
+  }
+}
+
+enum _QuickAction { income, expense, recurring }
+
+class _ShellFabSlot extends ConsumerWidget {
+  const _ShellFabSlot({required this.bottomDockInset, required this.onPressed});
+
+  final double bottomDockInset;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool isOverlayOpen = ref.watch(isOverlayOpenProvider);
+
+    return Padding(
+      padding: EdgeInsets.only(right: 4, bottom: bottomDockInset + 60),
+      child: IgnorePointer(
+        ignoring: isOverlayOpen,
+        child: SizedBox(
+          width: 56,
+          height: 56,
+          child: AnimatedSwitcher(
+            duration: AppDurations.fast,
+            reverseDuration: AppDurations.fast,
+            switchInCurve: AppEasing.expressive,
+            switchOutCurve: AppEasing.standard,
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              final Animation<double> fade = CurvedAnimation(
+                parent: animation,
+                curve: AppEasing.standard,
+              );
+              final Animation<double> scale = Tween<double>(begin: 0.92, end: 1)
+                  .animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: AppEasing.expressive,
+                    ),
+                  );
+              return FadeTransition(
+                opacity: fade,
+                child: ScaleTransition(scale: scale, child: child),
+              );
+            },
+            child: isOverlayOpen
+                ? const SizedBox.square(
+                    key: ValueKey<String>('shell-fab-hidden'),
+                    dimension: 56,
+                  )
+                : HiFiFab(
+                    key: const ValueKey<String>('shell-fab-visible'),
+                    onPressed: onPressed,
+                  ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -129,20 +213,25 @@ class _QuickActionsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
     return HiFiBottomSheet(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('ADD NEW', style: AppTypography.eye),
+          Text(strings.addNew.toUpperCase(), style: AppTypography.eye),
           const SizedBox(height: 4),
           RichText(
             text: TextSpan(
               style: AppTypography.h2,
               children: <InlineSpan>[
-                const TextSpan(text: 'What did you just '),
                 TextSpan(
-                  text: 'do',
+                  text: strings.locale == AppLocale.en
+                      ? 'What did you just '
+                      : 'Az once ne ',
+                ),
+                TextSpan(
+                  text: strings.locale == AppLocale.en ? 'do' : 'yaptiniz',
                   style: AppTypography.h2.copyWith(
                     fontStyle: FontStyle.italic,
                     color: AppColors.brand,
@@ -156,29 +245,29 @@ class _QuickActionsSheet extends StatelessWidget {
           _SheetAction(
             icon: Icons.trending_up_rounded,
             tone: HiFiIconTileTone.income,
-            title: 'Gelir ekle',
-            meta: 'Income · sale, payout, transfer',
+            title: strings.addIncome,
+            meta: strings.addIncomeMeta,
             onTap: onIncomeTap,
           ),
           const SizedBox(height: AppSpacing.xs),
           _SheetAction(
             icon: Icons.trending_down_rounded,
             tone: HiFiIconTileTone.expense,
-            title: 'Gider ekle',
-            meta: 'Expense · supplies, fuel, food',
+            title: strings.addExpense,
+            meta: strings.addExpenseMeta,
             onTap: onExpenseTap,
           ),
           const SizedBox(height: AppSpacing.xs),
           _SheetAction(
             icon: Icons.event_repeat_rounded,
             tone: HiFiIconTileTone.amber,
-            title: 'Tekrarlayan gider',
-            meta: 'Recurring · rent, bills, insurance',
+            title: strings.addRecurringExpense,
+            meta: strings.addRecurringMeta,
             onTap: onRecurringTap,
           ),
           const SizedBox(height: AppSpacing.sm),
           AppButton(
-            label: 'Cancel',
+            label: strings.cancel,
             onPressed: onClose,
             variant: AppButtonVariant.ghost,
           ),

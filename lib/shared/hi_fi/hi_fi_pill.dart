@@ -97,12 +97,16 @@ class HiFiPill extends StatelessWidget {
             ),
             const SizedBox(width: 4),
           ],
-          Text(
-            label,
-            style: AppTypography.delta.copyWith(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: c.fg,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.delta.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: c.fg,
+              ),
             ),
           ),
         ],

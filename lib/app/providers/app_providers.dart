@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../router/route_access.dart';
@@ -10,15 +12,40 @@ import '../../data/local/outbox_repository.dart';
 import '../../data/sync/conflict_policy.dart';
 import '../../data/sync/sync_engine.dart';
 import '../../data/sync/sync_service.dart';
+import '../../features/expense_detail/domain/expense_detail_models.dart';
+import '../../features/income_detail/domain/income_detail_models.dart';
+import '../../features/net_profit_detail/domain/net_profit_detail_models.dart';
+import '../../features/reports/domain/monthly_reports_models.dart';
+import '../../features/reports/domain/monthly_reports_service.dart';
+import '../../l10n/app_locale.dart';
+import '../../l10n/app_locale_storage.dart';
+import '../../l10n/app_localizations.dart';
 
 final refreshKeyProvider = StateProvider<int>((ref) => 0);
 
-final supabaseClientProvider = Provider<SupabaseClient>(
-  (ref) => Supabase.instance.client,
+final appLocaleStorageProvider = Provider<AppLocaleStorage>(
+  (ref) => InMemoryAppLocaleStorage(),
 );
 
-final giderRepositoryProvider = Provider<GiderRepository>(
-  (ref) => GiderRepository(ref.watch(supabaseClientProvider)),
+final appLocaleProvider = StateNotifierProvider<AppLocaleController, AppLocale>(
+  (ref) => AppLocaleController(ref.watch(appLocaleStorageProvider)),
+);
+
+final appLocalizationsProvider = Provider<AppLocalizations>(
+  (ref) => AppLocalizations(ref.watch(appLocaleProvider)),
+);
+
+final overlayCoordinatorProvider =
+    StateNotifierProvider<OverlayCoordinator, int>(
+      (ref) => OverlayCoordinator(),
+    );
+
+final isOverlayOpenProvider = Provider<bool>(
+  (ref) => ref.watch(overlayCoordinatorProvider) > 0,
+);
+
+final supabaseClientProvider = Provider<SupabaseClient>(
+  (ref) => Supabase.instance.client,
 );
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -57,6 +84,25 @@ final syncServiceProvider = Provider<SyncService>(
     connectivityProbe: ref.watch(connectivityProbeProvider),
   ),
 );
+
+final giderRepositoryProvider = Provider<GiderRepository>((ref) {
+  // Web has no drift/sqlite backend in this build, so skip the local
+  // outbox + sync layer and talk to Supabase directly. Native targets
+  // keep the full offline-first pipeline.
+  if (kIsWeb) {
+    return GiderRepository(
+      ref.watch(supabaseClientProvider),
+      syncConflictPolicy: ref.watch(syncConflictPolicyProvider),
+    );
+  }
+  return GiderRepository(
+    ref.watch(supabaseClientProvider),
+    outboxRepository: ref.watch(outboxRepositoryProvider),
+    connectivityProbe: ref.watch(connectivityProbeProvider),
+    syncService: ref.watch(syncServiceProvider),
+    syncConflictPolicy: ref.watch(syncConflictPolicyProvider),
+  );
+});
 
 final sessionControllerProvider = Provider<SessionController>(
   (ref) => SessionController(ref.watch(supabaseClientProvider)),
@@ -109,21 +155,73 @@ final dashboardSnapshotProvider = FutureProvider<DashboardSnapshot>((
   ref,
 ) async {
   ref.watch(refreshKeyProvider);
-  return ref.watch(giderRepositoryProvider).fetchDashboardSnapshot();
+  final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+  return ref.watch(giderRepositoryProvider).fetchDashboardSnapshot(strings);
 });
 
-final reportsSnapshotProvider = FutureProvider<ReportsSnapshot>((ref) async {
-  ref.watch(refreshKeyProvider);
-  return ref
-      .watch(giderRepositoryProvider)
-      .fetchReportsSnapshot(DateTime.now());
+final reportsServiceProvider = Provider<MonthlyReportsService>(
+  (ref) => MonthlyReportsService(),
+);
+
+final selectedReportsMonthProvider = StateProvider<DateTime>((ref) {
+  final DateTime now = DateTime.now();
+  return DateTime(now.year, now.month, 1);
 });
+
+final reportsSnapshotProvider = FutureProvider<MonthlyReportsViewModel>((
+  ref,
+) async {
+  ref.watch(refreshKeyProvider);
+  final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+  final DateTime selectedMonth = ref.watch(selectedReportsMonthProvider);
+  final MonthlyReportsDataset dataset = await ref
+      .watch(giderRepositoryProvider)
+      .fetchMonthlyReportsDataset(selectedMonth, trendMonthCount: 6);
+  return ref.watch(reportsServiceProvider).buildViewModel(dataset, strings);
+});
+
+final incomeDetailProvider =
+    FutureProvider.family<IncomeDetailViewModel, IncomeDetailQuery>((
+      ref,
+      query,
+    ) async {
+      ref.watch(refreshKeyProvider);
+      final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+      return ref
+          .watch(giderRepositoryProvider)
+          .fetchIncomeDetail(query, strings);
+    });
+
+final expenseDetailProvider =
+    FutureProvider.family<ExpenseDetailViewModel, ExpenseDetailQuery>((
+      ref,
+      query,
+    ) async {
+      ref.watch(refreshKeyProvider);
+      final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+      return ref
+          .watch(giderRepositoryProvider)
+          .fetchExpenseDetail(query, strings);
+    });
+
+final netProfitDetailProvider =
+    FutureProvider.family<NetProfitDetailViewModel, NetProfitDetailQuery>((
+      ref,
+      query,
+    ) async {
+      ref.watch(refreshKeyProvider);
+      final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+      return ref
+          .watch(giderRepositoryProvider)
+          .fetchNetProfitDetail(query, strings);
+    });
 
 final recurringItemsProvider = FutureProvider<List<RecurringUiItem>>((
   ref,
 ) async {
   ref.watch(refreshKeyProvider);
-  return ref.watch(giderRepositoryProvider).fetchRecurringUiItems();
+  final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+  return ref.watch(giderRepositoryProvider).fetchRecurringUiItems(strings);
 });
 
 final recurringSummaryProvider = FutureProvider<RecurringSummarySnapshot>((
@@ -188,3 +286,33 @@ final transactionsProvider =
           );
       }
     });
+
+class OverlayCoordinator extends StateNotifier<int> {
+  OverlayCoordinator() : super(0);
+
+  void push() => state = state + 1;
+
+  void pop() {
+    if (state == 0) {
+      return;
+    }
+    state = state - 1;
+  }
+}
+
+class AppLocaleController extends StateNotifier<AppLocale> {
+  AppLocaleController(this._storage) : super(_storage.load()) {
+    Intl.defaultLocale = state.intlTag;
+  }
+
+  final AppLocaleStorage _storage;
+
+  Future<void> setLocale(AppLocale locale) async {
+    if (locale == state) {
+      return;
+    }
+    state = locale;
+    Intl.defaultLocale = locale.intlTag;
+    await _storage.save(locale);
+  }
+}
