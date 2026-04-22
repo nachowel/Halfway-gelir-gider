@@ -30,6 +30,7 @@ void main() {
                 categoryId: 'category-rent',
                 paymentMethod: PaymentMethodType.card,
                 vendor: 'Shell',
+                supplierId: 'supplier-1',
               ),
               categoryType: CategoryType.expense,
               categoryName: 'Fuel',
@@ -45,6 +46,7 @@ void main() {
         expect(localTransaction!.categoryName, 'Fuel');
         expect(localTransaction.syncStatus, 'pending_create');
         expect(localTransaction.amountMinor, 4200);
+        expect(localTransaction.supplierId, 'supplier-1');
 
         expect(entries, hasLength(1));
         expect(entries.single.id, queued.outboxEntryId);
@@ -53,6 +55,7 @@ void main() {
         expect(entries.single.attemptCount, 0);
         expect(entries.single.payload['category_name'], 'Fuel');
         expect(entries.single.payload['vendor'], 'Shell');
+        expect(entries.single.payload['supplier_id'], 'supplier-1');
         expect(
           entries.single.dedupeKey,
           repository.createTransactionDedupeKey(queued.localTransactionId),
@@ -108,6 +111,7 @@ void main() {
             categoryId: 'category-rent',
             paymentMethod: PaymentMethodType.card,
             vendor: 'First vendor',
+            supplierId: 'supplier-1',
           ),
           categoryType: CategoryType.expense,
         );
@@ -121,6 +125,7 @@ void main() {
             categoryId: 'category-rent',
             paymentMethod: PaymentMethodType.card,
             vendor: 'Second vendor',
+            supplierId: 'supplier-2',
           ),
           categoryType: CategoryType.expense,
         );
@@ -132,9 +137,29 @@ void main() {
         expect(entries.single.operation, OutboxOperationType.updateTransaction);
         expect(entries.single.dedupeKey, 'transaction:update:tx-1');
         expect(entries.single.payload['vendor'], 'Second vendor');
+        expect(entries.single.payload['supplier_id'], 'supplier-2');
         expect(entries.single.payload['amount_minor'], 5100);
       },
     );
+
+    test('income outbox write rejects supplier id before queueing', () async {
+      await expectLater(
+        repository.queueCreateTransaction(
+          draft: EntryDraft(
+            type: TransactionType.income,
+            occurredOn: DateTime(2026, 4, 21),
+            amountMinor: 18600,
+            categoryId: 'category-sales',
+            paymentMethod: PaymentMethodType.cash,
+            supplierId: 'supplier-1',
+          ),
+          categoryType: CategoryType.income,
+          categoryName: 'Cash Sales',
+        ),
+        throwsA(isA<Exception>()),
+      );
+      expect(await repository.pendingEntries(), isEmpty);
+    });
 
     test(
       'delete queue removes open updates and ignores duplicate delete',

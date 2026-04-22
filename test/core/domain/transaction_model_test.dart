@@ -92,5 +92,45 @@ void main() {
         ),
       );
     });
+
+    test('accepts supplier id for expense transactions', () {
+      final TransactionModel model = TransactionModel.fromPayload(
+        type: 'expense',
+        occurredOn: DateTime(2026, 4, 20),
+        amountMinor: 2400,
+        currency: 'GBP',
+        categoryId: 'cat-supplies',
+        categoryType: 'expense',
+        paymentMethod: 'card',
+        vendor: 'Wholesale Ltd',
+        supplierId: 'supp-1',
+      );
+
+      expect(model.type, TransactionType.expense);
+      expect(model.vendor, 'Wholesale Ltd');
+      expect(model.supplierId, 'supp-1');
+    });
+
+    test('rejects supplier id for income transactions', () {
+      expect(
+        () => TransactionModel.fromPayload(
+          type: 'income',
+          occurredOn: DateTime(2026, 4, 20),
+          amountMinor: 1000,
+          currency: 'GBP',
+          categoryId: 'cat-cash-sales',
+          categoryType: 'income',
+          paymentMethod: 'cash',
+          supplierId: 'supp-1',
+        ),
+        throwsA(
+          isA<DomainValidationException>().having(
+            (DomainValidationException error) => error.code,
+            'code',
+            'transaction.supplier_expense_only',
+          ),
+        ),
+      );
+    });
   });
 }

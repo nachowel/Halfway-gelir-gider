@@ -10,6 +10,7 @@ import 'package:gider/features/dashboard/widgets/reserve_planner_card.dart';
 import 'package:gider/features/dashboard/widgets/summary_cards.dart';
 import 'package:gider/features/dashboard/widgets/transaction_list_item.dart';
 import 'package:gider/features/dashboard/widgets/upcoming_payment_item.dart';
+import 'package:gider/l10n/app_localizations.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -109,6 +110,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: DashboardScreen()),
       ),
     );
@@ -161,7 +164,12 @@ void main() {
       overrides: <Override>[
         dashboardSnapshotProvider.overrideWith((_) async => snapshot),
       ],
-      child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+      child: MaterialApp.router(
+        theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
     );
   }
 
@@ -174,6 +182,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: DashboardScreen()),
       ),
     );
@@ -425,7 +435,7 @@ void main() {
     await tester.pumpWidget(buildErrorApp());
     await tester.pumpAndSettle();
 
-    expect(find.text("Couldn't load dashboard"), findsOneWidget);
+    expect(find.text('Couldn’t load dashboard'), findsOneWidget);
     expect(find.byType(UpcomingPaymentItem), findsNothing);
     expect(find.byType(TransactionListItem), findsNothing);
   });

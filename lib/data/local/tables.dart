@@ -32,6 +32,7 @@ class LocalTransactions extends Table {
   TextColumn get sourcePlatform => text().nullable()();
   TextColumn get note => text().nullable()();
   TextColumn get vendor => text().nullable()();
+  TextColumn get supplierId => text().nullable()();
   TextColumn get attachmentPath => text().nullable()();
   TextColumn get recurringExpenseId => text().nullable()();
   DateTimeColumn get syncedAt => dateTime().nullable()();

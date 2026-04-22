@@ -16,11 +16,13 @@ class MonthlyReportsViewModel {
     required this.previousMonthComparison,
     required this.health,
     required this.categoryBreakdownRows,
+    required this.supplierBreakdownRows,
     required this.insights,
     required this.trendSeries,
     required this.dailySummary,
     required this.isEmpty,
     required this.hasCategoryData,
+    required this.hasSupplierData,
     required this.hasTrendData,
   });
 
@@ -33,11 +35,13 @@ class MonthlyReportsViewModel {
   final MonthlyReportsComparison? previousMonthComparison;
   final MonthlyReportsHealth health;
   final List<MonthlyReportsCategoryRow> categoryBreakdownRows;
+  final List<MonthlyReportsSupplierRow> supplierBreakdownRows;
   final List<MonthlyReportsInsightItem> insights;
   final List<MonthlyReportsTrendPoint> trendSeries;
   final MonthlyReportsDailySummary dailySummary;
   final bool isEmpty;
   final bool hasCategoryData;
+  final bool hasSupplierData;
   final bool hasTrendData;
 
   bool get hasPreviousMonthComparison => previousMonthComparison != null;
@@ -133,6 +137,53 @@ class MonthlyReportsTrendPoint {
   final bool isCurrentMonth;
 
   bool get hasActivity => incomeMinor > 0 || expenseMinor > 0;
+}
+
+@immutable
+class MonthlyReportsSupplierRow {
+  const MonthlyReportsSupplierRow({
+    required this.supplierLabel,
+    required this.amountMinor,
+    required this.sharePercent,
+    required this.shareFraction,
+    required this.supplierKey,
+    this.categoryContext,
+  });
+
+  final String supplierLabel;
+  final int amountMinor;
+  final double sharePercent;
+  final double shareFraction;
+  final String supplierKey;
+  final String? categoryContext;
+}
+
+@immutable
+class MonthlyReportsCategorySupplierRow {
+  const MonthlyReportsCategorySupplierRow({
+    required this.supplierLabel,
+    required this.amountMinor,
+    required this.sharePercent,
+    required this.shareFraction,
+  });
+
+  final String supplierLabel;
+  final int amountMinor;
+  final double sharePercent;
+  final double shareFraction;
+}
+
+@immutable
+class SupplierMonthSpendRow {
+  const SupplierMonthSpendRow({
+    required this.monthStart,
+    required this.monthLabel,
+    required this.totalMinor,
+  });
+
+  final DateTime monthStart;
+  final String monthLabel;
+  final int totalMinor;
 }
 
 @immutable

@@ -13,6 +13,7 @@ import '../../features/recurring/presentation/recurring_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/onboarding_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/suppliers/presentation/suppliers_screen.dart';
 import '../../features/transactions/presentation/transactions_screen.dart';
 import '../providers/app_providers.dart';
 import '../shell/app_shell.dart';
@@ -262,6 +263,14 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (BuildContext context, GoRouterState state) {
                   return const NoTransitionPage<void>(
                     child: CategoriesScreen(),
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'suppliers',
+                pageBuilder: (BuildContext context, GoRouterState state) {
+                  return const NoTransitionPage<void>(
+                    child: SuppliersScreen(),
                   );
                 },
               ),

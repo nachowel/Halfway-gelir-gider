@@ -65,6 +65,7 @@ void main() {
           categoryId: 'c1111111-1111-4111-8111-111111111111',
           paymentMethod: PaymentMethodType.card,
           vendor: 'Shell',
+          supplierId: 'supplier-1',
         ),
         categoryType: CategoryType.expense,
         categoryName: 'Fuel',
@@ -73,11 +74,14 @@ void main() {
 
     test('successful create finalizes local transaction and outbox', () async {
       final QueuedCreateTransaction queued = await queueExpense();
+      Map<String, dynamic>? observedPayload;
       final SyncEngine engine = SyncEngine(
         outboxRepository: outboxRepository,
         transactionGateway: _FakeTransactionSyncGateway(
-          onCreate: (Map<String, dynamic> payload) async =>
-              payload['local_id'] as String,
+          onCreate: (Map<String, dynamic> payload) async {
+            observedPayload = payload;
+            return payload['local_id'] as String;
+          },
         ),
         conflictPolicy: conflictPolicy,
         clock: () => now,
@@ -91,6 +95,7 @@ void main() {
       ))!;
 
       expect(result.succeededEntries, 1);
+      expect(observedPayload!['supplier_id'], 'supplier-1');
       expect(local.remoteId, queued.localTransactionId);
       expect(local.syncStatus, 'synced');
       expect(local.syncedAt, isNotNull);
@@ -227,12 +232,18 @@ void main() {
           categoryId: 'c1111111-1111-4111-8111-111111111111',
           paymentMethod: PaymentMethodType.card,
           vendor: 'Updated vendor',
+          supplierId: 'supplier-2',
         ),
         categoryType: CategoryType.expense,
       );
+      Map<String, dynamic>? observedPayload;
       final SyncEngine engine = SyncEngine(
         outboxRepository: outboxRepository,
-        transactionGateway: _FakeTransactionSyncGateway(onUpdate: (_) async {}),
+        transactionGateway: _FakeTransactionSyncGateway(
+          onUpdate: (Map<String, dynamic> payload) async {
+            observedPayload = payload;
+          },
+        ),
         conflictPolicy: conflictPolicy,
         clock: () => now,
       );
@@ -243,6 +254,7 @@ void main() {
       ))!;
 
       expect(result.succeededEntries, 1);
+      expect(observedPayload!['supplier_id'], 'supplier-2');
       expect(outbox.status, 'completed');
     });
 

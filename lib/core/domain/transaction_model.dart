@@ -13,6 +13,7 @@ final class TransactionModel {
     required this.sourcePlatform,
     required this.note,
     required this.vendor,
+    required this.supplierId,
     required this.attachmentPath,
     required this.recurringExpenseId,
   });
@@ -28,6 +29,7 @@ final class TransactionModel {
   final SourcePlatformType? sourcePlatform;
   final String? note;
   final String? vendor;
+  final String? supplierId;
   final String? attachmentPath;
   final String? recurringExpenseId;
 
@@ -43,18 +45,31 @@ final class TransactionModel {
     String? sourcePlatform,
     String? note,
     String? vendor,
+    String? supplierId,
     String? attachmentPath,
     String? recurringExpenseId,
   }) {
     final TransactionType normalizedType = TransactionTypeX.fromDbValue(type);
     final CategoryType normalizedCategoryType =
         CategoryTypeX.fromDbValue(categoryType);
+    final String? normalizedSupplierId = normalizeOptionalText(
+      supplierId,
+      'transaction_supplier_id',
+    );
 
     if (normalizedType.name != normalizedCategoryType.name) {
       throw DomainValidationException(
         code: 'transaction.category_type_mismatch',
         message:
             'Transaction type must match category type. Got $type with $categoryType.',
+      );
+    }
+
+    if (normalizedSupplierId != null &&
+        normalizedType != TransactionType.expense) {
+      throw const DomainValidationException(
+        code: 'transaction.supplier_expense_only',
+        message: 'Suppliers can only be attached to expense transactions.',
       );
     }
 
@@ -72,6 +87,7 @@ final class TransactionModel {
           : SourcePlatformTypeX.fromDbValue(sourcePlatform),
       note: normalizeOptionalText(note, 'transaction_note'),
       vendor: normalizeOptionalText(vendor, 'transaction_vendor'),
+      supplierId: normalizedSupplierId,
       attachmentPath: normalizeOptionalText(
         attachmentPath,
         'transaction_attachment_path',

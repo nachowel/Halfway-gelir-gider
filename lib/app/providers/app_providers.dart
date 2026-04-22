@@ -168,15 +168,24 @@ final selectedReportsMonthProvider = StateProvider<DateTime>((ref) {
   return DateTime(now.year, now.month, 1);
 });
 
+final reportsDatasetProvider = FutureProvider<MonthlyReportsDataset>((
+  ref,
+) async {
+  ref.watch(refreshKeyProvider);
+  final DateTime selectedMonth = ref.watch(selectedReportsMonthProvider);
+  return ref
+      .watch(giderRepositoryProvider)
+      .fetchMonthlyReportsDataset(selectedMonth, trendMonthCount: 6);
+});
+
 final reportsSnapshotProvider = FutureProvider<MonthlyReportsViewModel>((
   ref,
 ) async {
   ref.watch(refreshKeyProvider);
   final AppLocalizations strings = ref.watch(appLocalizationsProvider);
-  final DateTime selectedMonth = ref.watch(selectedReportsMonthProvider);
-  final MonthlyReportsDataset dataset = await ref
-      .watch(giderRepositoryProvider)
-      .fetchMonthlyReportsDataset(selectedMonth, trendMonthCount: 6);
+  final MonthlyReportsDataset dataset = await ref.watch(
+    reportsDatasetProvider.future,
+  );
   return ref.watch(reportsServiceProvider).buildViewModel(dataset, strings);
 });
 
@@ -249,6 +258,41 @@ final expenseCategoriesProvider = FutureProvider<List<CategoryData>>((
   return ref
       .watch(giderRepositoryProvider)
       .fetchCategories(CategoryType.expense);
+});
+
+class SuppliersQuery {
+  const SuppliersQuery({this.expenseCategoryId, this.includeArchived = false});
+
+  final String? expenseCategoryId;
+  final bool includeArchived;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SuppliersQuery &&
+      other.expenseCategoryId == expenseCategoryId &&
+      other.includeArchived == includeArchived;
+
+  @override
+  int get hashCode => Object.hash(expenseCategoryId, includeArchived);
+}
+
+final suppliersProvider =
+    FutureProvider.family<List<SupplierData>, SuppliersQuery>((
+      ref,
+      query,
+    ) async {
+      ref.watch(refreshKeyProvider);
+      return ref.watch(giderRepositoryProvider).fetchSuppliers(
+            expenseCategoryId: query.expenseCategoryId,
+            includeArchived: query.includeArchived,
+          );
+    });
+
+final activeSuppliersProvider = FutureProvider<List<SupplierData>>((
+  ref,
+) async {
+  ref.watch(refreshKeyProvider);
+  return ref.watch(giderRepositoryProvider).fetchSuppliers();
 });
 
 enum TransactionsFilter { thisWeek, all, expense, income, card, cash }

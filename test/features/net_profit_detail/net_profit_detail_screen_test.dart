@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gider/app/providers/app_providers.dart';
-import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/features/net_profit_detail/domain/net_profit_detail_models.dart';
 import 'package:gider/features/net_profit_detail/presentation/net_profit_detail_screen.dart';
 
+import '../../support/localization_test_harness.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(AppTheme.configure);
 
   final NetProfitDetailViewModel populatedViewModel = NetProfitDetailViewModel(
     query: const NetProfitDetailQuery.thisWeek(),
@@ -285,10 +285,7 @@ void main() {
       overrides: <Override>[
         netProfitDetailProvider.overrideWith((ref, query) async => viewModel),
       ],
-      child: MaterialApp(
-        theme: AppTheme.light(),
-        home: const NetProfitDetailScreen(),
-      ),
+      child: buildLocalizedTestApp(home: const NetProfitDetailScreen()),
     );
   }
 
@@ -301,7 +298,7 @@ void main() {
     await tester.pumpWidget(buildApp(populatedViewModel));
     await tester.pumpAndSettle();
 
-    expect(find.text('Net Profit'), findsOneWidget);
+    expect(find.text('Net profit'), findsWidgets);
     expect(find.text('Mon 20 Apr – Sun 26 Apr'), findsOneWidget);
     expect(find.text('£30.00'), findsOneWidget);
     expect(find.text('Margin 20%'), findsOneWidget);

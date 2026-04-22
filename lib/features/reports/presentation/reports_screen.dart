@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../data/app_models.dart';
 import '../../../features/reports/domain/monthly_reports_models.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_bar.dart';
@@ -75,7 +76,20 @@ class ReportsScreen extends ConsumerWidget {
           if (!report.hasCategoryData)
             const _EmptyBreakdownState()
           else
-            _BreakdownList(items: report.categoryBreakdownRows),
+            _BreakdownList(
+              items: report.categoryBreakdownRows,
+              selectedMonth: report.selectedMonth,
+            ),
+          const SizedBox(height: AppSpacing.lg),
+          HiFiSectionHeader.eye(left: strings.supplierBreakdown),
+          const SizedBox(height: AppSpacing.sm),
+          if (!report.hasSupplierData)
+            const _EmptySupplierBreakdownState()
+          else
+            _SupplierBreakdownList(
+              items: report.supplierBreakdownRows,
+              selectedMonth: report.selectedMonth,
+            ),
           const SizedBox(height: AppSpacing.lg),
           HiFiSectionHeader.eye(left: strings.monthlyTrend),
           const SizedBox(height: AppSpacing.sm),
@@ -663,16 +677,23 @@ class _InsightCard extends StatelessWidget {
 }
 
 class _BreakdownList extends StatelessWidget {
-  const _BreakdownList({required this.items});
+  const _BreakdownList({
+    required this.items,
+    required this.selectedMonth,
+  });
 
   final List<MonthlyReportsCategoryRow> items;
+  final DateTime selectedMonth;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
         for (int index = 0; index < items.length; index++) ...<Widget>[
-          _ExpenseCategoryRow(item: items[index]),
+          _ExpenseCategoryRow(
+            item: items[index],
+            selectedMonth: selectedMonth,
+          ),
           if (index != items.length - 1) const SizedBox(height: 10),
         ],
       ],
@@ -681,55 +702,196 @@ class _BreakdownList extends StatelessWidget {
 }
 
 class _ExpenseCategoryRow extends StatelessWidget {
-  const _ExpenseCategoryRow({required this.item});
+  const _ExpenseCategoryRow({
+    required this.item,
+    required this.selectedMonth,
+  });
 
   final MonthlyReportsCategoryRow item;
+  final DateTime selectedMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openCategoryDetailSheet(context),
+        borderRadius: BorderRadius.circular(16),
+        child: HiFiCard.compact(
+          elevation: HiFiCardElevation.none,
+          border: Border.all(color: AppColors.borderSoft),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Icon(item.icon, size: 14, color: AppColors.expense),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.categoryName,
+                      style: AppTypography.body.copyWith(fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Text(
+                        ReportsScreen._formatCurrency(item.amountMinor),
+                        style: AppTypography.numSm,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        ReportsScreen._formatPercent(item.sharePercent),
+                        style: AppTypography.meta.copyWith(
+                          color: AppColors.expenseInk,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              HiFiBar(value: item.shareFraction, tone: HiFiBarTone.expense),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCategoryDetailSheet(BuildContext context) {
+    showAppModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        final AppLocalizations strings = sheetContext.strings;
+        return HiFiBottomSheet(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+            ),
+            child: Consumer(
+              builder: (BuildContext _, WidgetRef ref, Widget? __) {
+                final AsyncValue<MonthlyReportsDataset> datasetAsync = ref.watch(
+                  reportsDatasetProvider,
+                );
+                return datasetAsync.when(
+                  loading:
+                      () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                  error: (_, __) => Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(strings.reportsLoadError),
+                  ),
+                  data: (MonthlyReportsDataset dataset) {
+                    final List<MonthlyReportsCategorySupplierRow> rows = ref
+                        .read(reportsServiceProvider)
+                        .buildCategorySupplierRows(
+                          dataset,
+                          item.categoryName,
+                          selectedMonth,
+                          strings,
+                        );
+                    if (rows.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          strings.noSuppliersThisMonth,
+                          style: AppTypography.bodySoft,
+                        ),
+                      );
+                    }
+                    final List<MonthlyReportsCategorySupplierRow> topRows =
+                        rows.take(5).toList();
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            item.categoryName,
+                            style: AppTypography.h2,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            strings.topSuppliersThisMonth,
+                            style: AppTypography.bodySoft,
+                          ),
+                          const SizedBox(height: 16),
+                          for (
+                            int i = 0;
+                            i < topRows.length;
+                            i++
+                          ) ...<Widget>[
+                            _CategorySupplierRow(item: topRows[i]),
+                            if (i != topRows.length - 1)
+                              const SizedBox(height: 10),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CategorySupplierRow extends StatelessWidget {
+  const _CategorySupplierRow({required this.item});
+
+  final MonthlyReportsCategorySupplierRow item;
 
   @override
   Widget build(BuildContext context) {
     return HiFiCard.compact(
       elevation: HiFiCardElevation.none,
       border: Border.all(color: AppColors.borderSoft),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: Text(
+              item.supplierLabel,
+              style: AppTypography.body.copyWith(fontSize: 13),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Icon(item.icon, size: 14, color: AppColors.expense),
+              Text(
+                ReportsScreen._formatCurrency(item.amountMinor),
+                style: AppTypography.numSm,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  item.categoryName,
-                  style: AppTypography.body.copyWith(fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 2),
+              Text(
+                ReportsScreen._formatPercent(item.sharePercent),
+                style: AppTypography.meta.copyWith(
+                  color: AppColors.expenseInk,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Text(
-                    ReportsScreen._formatCurrency(item.amountMinor),
-                    style: AppTypography.numSm,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    ReportsScreen._formatPercent(item.sharePercent),
-                    style: AppTypography.meta.copyWith(
-                      color: AppColors.expenseInk,
-                    ),
-                  ),
-                ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          HiFiBar(value: item.shareFraction, tone: HiFiBarTone.expense),
         ],
       ),
     );
@@ -1023,6 +1185,204 @@ class _MonthChoiceChip extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SupplierBreakdownList extends StatelessWidget {
+  const _SupplierBreakdownList({
+    required this.items,
+    required this.selectedMonth,
+  });
+
+  final List<MonthlyReportsSupplierRow> items;
+  final DateTime selectedMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        for (int index = 0; index < items.length; index++) ...<Widget>[
+          _SupplierRow(
+            item: items[index],
+            selectedMonth: selectedMonth,
+          ),
+          if (index != items.length - 1) const SizedBox(height: 10),
+        ],
+      ],
+    );
+  }
+}
+
+class _SupplierRow extends StatelessWidget {
+  const _SupplierRow({
+    required this.item,
+    required this.selectedMonth,
+  });
+
+  final MonthlyReportsSupplierRow item;
+  final DateTime selectedMonth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openSupplierDetailSheet(context),
+        borderRadius: BorderRadius.circular(16),
+        child: HiFiCard.compact(
+          elevation: HiFiCardElevation.none,
+          border: Border.all(color: AppColors.borderSoft),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      item.supplierLabel,
+                      style: AppTypography.body.copyWith(fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Text(
+                        ReportsScreen._formatCurrency(item.amountMinor),
+                        style: AppTypography.numSm,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        ReportsScreen._formatPercent(item.sharePercent),
+                        style: AppTypography.meta.copyWith(
+                          color: AppColors.expenseInk,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              HiFiBar(value: item.shareFraction, tone: HiFiBarTone.expense),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openSupplierDetailSheet(BuildContext context) {
+    showAppModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        final AppLocalizations strings = sheetContext.strings;
+        return HiFiBottomSheet(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.6,
+            ),
+            child: Consumer(
+              builder: (BuildContext _, WidgetRef ref, Widget? __) {
+                final AsyncValue<MonthlyReportsDataset> datasetAsync = ref.watch(
+                  reportsDatasetProvider,
+                );
+                return datasetAsync.when(
+                  loading:
+                      () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                  error: (_, __) => Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(strings.reportsLoadError),
+                  ),
+                  data: (MonthlyReportsDataset dataset) {
+                    final List<SupplierMonthSpendRow> rows = ref
+                        .read(reportsServiceProvider)
+                        .buildSupplierTrendRows(
+                          dataset,
+                          item.supplierKey,
+                          selectedMonth,
+                          strings,
+                        );
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            item.categoryContext == null
+                                ? item.supplierLabel
+                                : '${item.supplierLabel} · ${item.categoryContext}',
+                            style: AppTypography.h2,
+                          ),
+                          const SizedBox(height: 16),
+                          for (int i = 0; i < rows.length; i++) ...<Widget>[
+                            _SupplierMonthRow(item: rows[i]),
+                            if (i != rows.length - 1)
+                              const SizedBox(height: 10),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SupplierMonthRow extends StatelessWidget {
+  const _SupplierMonthRow({required this.item});
+
+  final SupplierMonthSpendRow item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(item.monthLabel, style: AppTypography.body),
+        ),
+        Text(
+          ReportsScreen._formatCurrency(item.totalMinor),
+          style: AppTypography.numSm.copyWith(
+            color:
+                item.totalMinor > 0
+                    ? AppColors.expense
+                    : AppColors.inkSoft,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptySupplierBreakdownState extends StatelessWidget {
+  const _EmptySupplierBreakdownState();
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations strings = context.strings;
+    return HiFiCard.compact(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(strings.noSuppliersThisMonth, style: AppTypography.bodySoft),
+        ],
       ),
     );
   }

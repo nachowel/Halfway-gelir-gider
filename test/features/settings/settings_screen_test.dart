@@ -6,6 +6,7 @@ import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/data/app_repository.dart';
 import 'package:gider/features/settings/presentation/settings_screen.dart';
+import 'package:gider/l10n/app_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockGiderRepository extends Mock implements GiderRepository {}
@@ -32,6 +33,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: SettingsScreen()),
       ),
     );

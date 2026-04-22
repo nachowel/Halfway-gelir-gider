@@ -763,6 +763,17 @@ class $LocalTransactionsTable extends LocalTransactions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _supplierIdMeta = const VerificationMeta(
+    'supplierId',
+  );
+  @override
+  late final GeneratedColumn<String> supplierId = GeneratedColumn<String>(
+    'supplier_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _attachmentPathMeta = const VerificationMeta(
     'attachmentPath',
   );
@@ -834,6 +845,7 @@ class $LocalTransactionsTable extends LocalTransactions
     sourcePlatform,
     note,
     vendor,
+    supplierId,
     attachmentPath,
     recurringExpenseId,
     syncedAt,
@@ -964,6 +976,12 @@ class $LocalTransactionsTable extends LocalTransactions
         vendor.isAcceptableOrUnknown(data['vendor']!, _vendorMeta),
       );
     }
+    if (data.containsKey('supplier_id')) {
+      context.handle(
+        _supplierIdMeta,
+        supplierId.isAcceptableOrUnknown(data['supplier_id']!, _supplierIdMeta),
+      );
+    }
     if (data.containsKey('attachment_path')) {
       context.handle(
         _attachmentPathMeta,
@@ -1069,6 +1087,10 @@ class $LocalTransactionsTable extends LocalTransactions
         DriftSqlType.string,
         data['${effectivePrefix}vendor'],
       ),
+      supplierId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supplier_id'],
+      ),
       attachmentPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}attachment_path'],
@@ -1114,6 +1136,7 @@ class LocalTransaction extends DataClass
   final String? sourcePlatform;
   final String? note;
   final String? vendor;
+  final String? supplierId;
   final String? attachmentPath;
   final String? recurringExpenseId;
   final DateTime? syncedAt;
@@ -1134,6 +1157,7 @@ class LocalTransaction extends DataClass
     this.sourcePlatform,
     this.note,
     this.vendor,
+    this.supplierId,
     this.attachmentPath,
     this.recurringExpenseId,
     this.syncedAt,
@@ -1164,6 +1188,9 @@ class LocalTransaction extends DataClass
     }
     if (!nullToAbsent || vendor != null) {
       map['vendor'] = Variable<String>(vendor);
+    }
+    if (!nullToAbsent || supplierId != null) {
+      map['supplier_id'] = Variable<String>(supplierId);
     }
     if (!nullToAbsent || attachmentPath != null) {
       map['attachment_path'] = Variable<String>(attachmentPath);
@@ -1201,6 +1228,9 @@ class LocalTransaction extends DataClass
       vendor: vendor == null && nullToAbsent
           ? const Value.absent()
           : Value(vendor),
+      supplierId: supplierId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supplierId),
       attachmentPath: attachmentPath == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentPath),
@@ -1235,6 +1265,7 @@ class LocalTransaction extends DataClass
       sourcePlatform: serializer.fromJson<String?>(json['sourcePlatform']),
       note: serializer.fromJson<String?>(json['note']),
       vendor: serializer.fromJson<String?>(json['vendor']),
+      supplierId: serializer.fromJson<String?>(json['supplierId']),
       attachmentPath: serializer.fromJson<String?>(json['attachmentPath']),
       recurringExpenseId: serializer.fromJson<String?>(
         json['recurringExpenseId'],
@@ -1262,6 +1293,7 @@ class LocalTransaction extends DataClass
       'sourcePlatform': serializer.toJson<String?>(sourcePlatform),
       'note': serializer.toJson<String?>(note),
       'vendor': serializer.toJson<String?>(vendor),
+      'supplierId': serializer.toJson<String?>(supplierId),
       'attachmentPath': serializer.toJson<String?>(attachmentPath),
       'recurringExpenseId': serializer.toJson<String?>(recurringExpenseId),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
@@ -1285,6 +1317,7 @@ class LocalTransaction extends DataClass
     Value<String?> sourcePlatform = const Value.absent(),
     Value<String?> note = const Value.absent(),
     Value<String?> vendor = const Value.absent(),
+    Value<String?> supplierId = const Value.absent(),
     Value<String?> attachmentPath = const Value.absent(),
     Value<String?> recurringExpenseId = const Value.absent(),
     Value<DateTime?> syncedAt = const Value.absent(),
@@ -1307,6 +1340,7 @@ class LocalTransaction extends DataClass
         : this.sourcePlatform,
     note: note.present ? note.value : this.note,
     vendor: vendor.present ? vendor.value : this.vendor,
+    supplierId: supplierId.present ? supplierId.value : this.supplierId,
     attachmentPath: attachmentPath.present
         ? attachmentPath.value
         : this.attachmentPath,
@@ -1349,6 +1383,9 @@ class LocalTransaction extends DataClass
           : this.sourcePlatform,
       note: data.note.present ? data.note.value : this.note,
       vendor: data.vendor.present ? data.vendor.value : this.vendor,
+      supplierId: data.supplierId.present
+          ? data.supplierId.value
+          : this.supplierId,
       attachmentPath: data.attachmentPath.present
           ? data.attachmentPath.value
           : this.attachmentPath,
@@ -1378,6 +1415,7 @@ class LocalTransaction extends DataClass
           ..write('sourcePlatform: $sourcePlatform, ')
           ..write('note: $note, ')
           ..write('vendor: $vendor, ')
+          ..write('supplierId: $supplierId, ')
           ..write('attachmentPath: $attachmentPath, ')
           ..write('recurringExpenseId: $recurringExpenseId, ')
           ..write('syncedAt: $syncedAt, ')
@@ -1403,6 +1441,7 @@ class LocalTransaction extends DataClass
     sourcePlatform,
     note,
     vendor,
+    supplierId,
     attachmentPath,
     recurringExpenseId,
     syncedAt,
@@ -1427,6 +1466,7 @@ class LocalTransaction extends DataClass
           other.sourcePlatform == this.sourcePlatform &&
           other.note == this.note &&
           other.vendor == this.vendor &&
+          other.supplierId == this.supplierId &&
           other.attachmentPath == this.attachmentPath &&
           other.recurringExpenseId == this.recurringExpenseId &&
           other.syncedAt == this.syncedAt &&
@@ -1449,6 +1489,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
   final Value<String?> sourcePlatform;
   final Value<String?> note;
   final Value<String?> vendor;
+  final Value<String?> supplierId;
   final Value<String?> attachmentPath;
   final Value<String?> recurringExpenseId;
   final Value<DateTime?> syncedAt;
@@ -1470,6 +1511,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
     this.sourcePlatform = const Value.absent(),
     this.note = const Value.absent(),
     this.vendor = const Value.absent(),
+    this.supplierId = const Value.absent(),
     this.attachmentPath = const Value.absent(),
     this.recurringExpenseId = const Value.absent(),
     this.syncedAt = const Value.absent(),
@@ -1492,6 +1534,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
     this.sourcePlatform = const Value.absent(),
     this.note = const Value.absent(),
     this.vendor = const Value.absent(),
+    this.supplierId = const Value.absent(),
     this.attachmentPath = const Value.absent(),
     this.recurringExpenseId = const Value.absent(),
     this.syncedAt = const Value.absent(),
@@ -1523,6 +1566,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
     Expression<String>? sourcePlatform,
     Expression<String>? note,
     Expression<String>? vendor,
+    Expression<String>? supplierId,
     Expression<String>? attachmentPath,
     Expression<String>? recurringExpenseId,
     Expression<DateTime>? syncedAt,
@@ -1545,6 +1589,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
       if (sourcePlatform != null) 'source_platform': sourcePlatform,
       if (note != null) 'note': note,
       if (vendor != null) 'vendor': vendor,
+      if (supplierId != null) 'supplier_id': supplierId,
       if (attachmentPath != null) 'attachment_path': attachmentPath,
       if (recurringExpenseId != null)
         'recurring_expense_id': recurringExpenseId,
@@ -1570,6 +1615,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
     Value<String?>? sourcePlatform,
     Value<String?>? note,
     Value<String?>? vendor,
+    Value<String?>? supplierId,
     Value<String?>? attachmentPath,
     Value<String?>? recurringExpenseId,
     Value<DateTime?>? syncedAt,
@@ -1592,6 +1638,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
       sourcePlatform: sourcePlatform ?? this.sourcePlatform,
       note: note ?? this.note,
       vendor: vendor ?? this.vendor,
+      supplierId: supplierId ?? this.supplierId,
       attachmentPath: attachmentPath ?? this.attachmentPath,
       recurringExpenseId: recurringExpenseId ?? this.recurringExpenseId,
       syncedAt: syncedAt ?? this.syncedAt,
@@ -1646,6 +1693,9 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
     if (vendor.present) {
       map['vendor'] = Variable<String>(vendor.value);
     }
+    if (supplierId.present) {
+      map['supplier_id'] = Variable<String>(supplierId.value);
+    }
     if (attachmentPath.present) {
       map['attachment_path'] = Variable<String>(attachmentPath.value);
     }
@@ -1684,6 +1734,7 @@ class LocalTransactionsCompanion extends UpdateCompanion<LocalTransaction> {
           ..write('sourcePlatform: $sourcePlatform, ')
           ..write('note: $note, ')
           ..write('vendor: $vendor, ')
+          ..write('supplierId: $supplierId, ')
           ..write('attachmentPath: $attachmentPath, ')
           ..write('recurringExpenseId: $recurringExpenseId, ')
           ..write('syncedAt: $syncedAt, ')
@@ -3738,6 +3789,7 @@ typedef $$LocalTransactionsTableCreateCompanionBuilder =
       Value<String?> sourcePlatform,
       Value<String?> note,
       Value<String?> vendor,
+      Value<String?> supplierId,
       Value<String?> attachmentPath,
       Value<String?> recurringExpenseId,
       Value<DateTime?> syncedAt,
@@ -3761,6 +3813,7 @@ typedef $$LocalTransactionsTableUpdateCompanionBuilder =
       Value<String?> sourcePlatform,
       Value<String?> note,
       Value<String?> vendor,
+      Value<String?> supplierId,
       Value<String?> attachmentPath,
       Value<String?> recurringExpenseId,
       Value<DateTime?> syncedAt,
@@ -3845,6 +3898,11 @@ class $$LocalTransactionsTableFilterComposer
 
   ColumnFilters<String> get vendor => $composableBuilder(
     column: $table.vendor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supplierId => $composableBuilder(
+    column: $table.supplierId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3953,6 +4011,11 @@ class $$LocalTransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get supplierId => $composableBuilder(
+    column: $table.supplierId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get attachmentPath => $composableBuilder(
     column: $table.attachmentPath,
     builder: (column) => ColumnOrderings(column),
@@ -4046,6 +4109,11 @@ class $$LocalTransactionsTableAnnotationComposer
   GeneratedColumn<String> get vendor =>
       $composableBuilder(column: $table.vendor, builder: (column) => column);
 
+  GeneratedColumn<String> get supplierId => $composableBuilder(
+    column: $table.supplierId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get attachmentPath => $composableBuilder(
     column: $table.attachmentPath,
     builder: (column) => column,
@@ -4120,6 +4188,7 @@ class $$LocalTransactionsTableTableManager
                 Value<String?> sourcePlatform = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<String?> vendor = const Value.absent(),
+                Value<String?> supplierId = const Value.absent(),
                 Value<String?> attachmentPath = const Value.absent(),
                 Value<String?> recurringExpenseId = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
@@ -4141,6 +4210,7 @@ class $$LocalTransactionsTableTableManager
                 sourcePlatform: sourcePlatform,
                 note: note,
                 vendor: vendor,
+                supplierId: supplierId,
                 attachmentPath: attachmentPath,
                 recurringExpenseId: recurringExpenseId,
                 syncedAt: syncedAt,
@@ -4164,6 +4234,7 @@ class $$LocalTransactionsTableTableManager
                 Value<String?> sourcePlatform = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<String?> vendor = const Value.absent(),
+                Value<String?> supplierId = const Value.absent(),
                 Value<String?> attachmentPath = const Value.absent(),
                 Value<String?> recurringExpenseId = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
@@ -4185,6 +4256,7 @@ class $$LocalTransactionsTableTableManager
                 sourcePlatform: sourcePlatform,
                 note: note,
                 vendor: vendor,
+                supplierId: supplierId,
                 attachmentPath: attachmentPath,
                 recurringExpenseId: recurringExpenseId,
                 syncedAt: syncedAt,

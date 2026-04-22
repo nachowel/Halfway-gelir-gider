@@ -6,6 +6,7 @@ import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/data/app_repository.dart';
 import 'package:gider/features/categories/presentation/categories_screen.dart';
+import 'package:gider/l10n/app_localizations.dart';
 import 'package:gider/shared/hi_fi/hi_fi_icon_tile.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -53,6 +54,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: CategoriesScreen()),
       ),
     );

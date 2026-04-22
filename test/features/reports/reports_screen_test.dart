@@ -6,6 +6,7 @@ import 'package:gider/app/shell/app_shell.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/features/reports/domain/monthly_reports_models.dart';
 import 'package:gider/features/reports/presentation/reports_screen.dart';
+import 'package:gider/l10n/app_localizations.dart';
 import 'package:gider/shared/hi_fi/hi_fi_fab.dart';
 
 void main() {
@@ -21,12 +22,15 @@ void main() {
     MonthlyReportsHealth? health,
     List<MonthlyReportsCategoryRow> categories =
         const <MonthlyReportsCategoryRow>[],
+    List<MonthlyReportsSupplierRow> suppliers =
+        const <MonthlyReportsSupplierRow>[],
     List<MonthlyReportsInsightItem>? insights,
     List<MonthlyReportsTrendPoint> trendSeries =
         const <MonthlyReportsTrendPoint>[],
     MonthlyReportsDailySummary? dailySummary,
     bool? isEmpty,
     bool? hasCategoryData,
+    bool? hasSupplierData,
     bool? hasTrendData,
   }) {
     return MonthlyReportsViewModel(
@@ -51,6 +55,7 @@ void main() {
             state: MonthlyReportsHealthState.strong,
           ),
       categoryBreakdownRows: categories,
+      supplierBreakdownRows: suppliers,
       insights:
           insights ??
           const <MonthlyReportsInsightItem>[
@@ -91,6 +96,7 @@ void main() {
           ),
       isEmpty: isEmpty ?? (incomeMinor == 0 && expenseMinor == 0),
       hasCategoryData: hasCategoryData ?? categories.isNotEmpty,
+      hasSupplierData: hasSupplierData ?? suppliers.isNotEmpty,
       hasTrendData:
           hasTrendData ??
           trendSeries.any(
@@ -118,6 +124,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: ReportsScreen()),
       ),
     );
@@ -142,6 +150,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const AppShell(
           currentLocation: '/reports',
           child: ReportsScreen(),
@@ -159,6 +169,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: ReportsScreen()),
       ),
     );
@@ -167,7 +179,7 @@ void main() {
   testWidgets('renders richer monthly overview sections', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(430, 1600));
+    await tester.binding.setSurfaceSize(const Size(430, 2200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
@@ -286,7 +298,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('reports-month-selector')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('reports-month-Mart')));
+    await tester.tap(find.byKey(const Key('reports-month-March')));
     await tester.pumpAndSettle();
 
     expect(find.text('Mart'), findsWidgets);
@@ -420,7 +432,7 @@ void main() {
     await tester.pumpWidget(buildErrorApp());
     await tester.pumpAndSettle();
 
-    expect(find.text("Couldn't load reports"), findsOneWidget);
+    expect(find.text("Couldn’t load reports"), findsOneWidget);
     expect(find.text('Check your connection and try again.'), findsOneWidget);
   });
 }

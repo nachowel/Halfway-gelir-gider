@@ -5,6 +5,7 @@ import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/features/transactions/presentation/transactions_screen.dart';
+import 'package:gider/l10n/app_localizations.dart';
 import 'package:gider/shared/hi_fi/hi_fi_list_row.dart';
 
 void main() {
@@ -163,6 +164,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TransactionsScreen(
             enableSearch: enableSearch,
@@ -294,7 +297,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text("Couldn't load transactions"), findsOneWidget);
+    expect(find.text("Couldn’t load transactions"), findsOneWidget);
     expect(find.text('Check your connection and try again.'), findsOneWidget);
     expect(find.byType(HiFiListRow), findsNothing);
   });

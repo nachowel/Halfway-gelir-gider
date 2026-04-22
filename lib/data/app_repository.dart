@@ -6,6 +6,7 @@ import '../core/domain/category_model.dart' as domain_category;
 import '../core/domain/monthly_summary.dart' as domain_monthly_summary;
 import '../core/domain/recurring_model.dart' as domain_recurring;
 import '../core/domain/reserve_planner.dart' as domain_reserve_planner;
+import '../core/domain/supplier_model.dart' as domain_supplier;
 import '../core/domain/transaction_model.dart' as domain_transaction;
 import '../core/domain/types.dart' as domain;
 import '../core/domain/weekly_summary.dart' as domain_weekly_summary;
@@ -45,6 +46,12 @@ class GiderRepository {
 
   static const int _dashboardRecentPreviewLimit = 4;
   static const int _dashboardUpcomingPreviewLimit = 3;
+  static const String _transactionSelectBase =
+      'id, type, occurred_on, amount_minor, currency, payment_method, '
+      'source_platform, note, vendor, attachment_path, recurring_expense_id, '
+      'supplier_id, created_at, category:categories(id, name, type)';
+  static const String _transactionSelectWithSupplier =
+      '$_transactionSelectBase, supplier:suppliers(id, name)';
   static final ExpenseDetailService _expenseDetailService =
       ExpenseDetailService();
   static final IncomeDetailService _incomeDetailService = IncomeDetailService();
@@ -366,18 +373,184 @@ class GiderRepository {
         .eq('user_id', _user.id);
   }
 
-  Future<TransactionData?> fetchTransaction({required String id}) async {
-    final Map<String, dynamic>? row = await _client
-        .from('transactions')
+  Future<List<SupplierData>> fetchSuppliers({
+    String? expenseCategoryId,
+    bool includeArchived = false,
+  }) async {
+    var query = _client
+        .from('suppliers')
         .select(
-          'id, type, occurred_on, amount_minor, currency, payment_method, source_platform, '
-          'note, vendor, attachment_path, recurring_expense_id, created_at, '
+          'id, expense_category_id, name, notes, is_archived, sort_order, '
           'category:categories(id, name, type)',
         )
-        .eq('id', id)
+        .eq('user_id', _user.id);
+
+    if (!includeArchived) {
+      query = query.eq('is_archived', false);
+    }
+    if (expenseCategoryId != null) {
+      query = query.eq('expense_category_id', expenseCategoryId);
+    }
+
+    final List<dynamic> rows = await query
+        .order('sort_order', ascending: true)
+        .order('created_at', ascending: true);
+
+    return rows.map<SupplierData>((dynamic row) {
+      final Map<String, dynamic>? category =
+          row['category'] as Map<String, dynamic>?;
+      return SupplierData(
+        id: row['id'] as String,
+        expenseCategoryId: row['expense_category_id'] as String,
+        expenseCategoryName: (category?['name'] as String?) ?? '',
+        name: row['name'] as String,
+        sortOrder: (row['sort_order'] as int?) ?? 0,
+        isArchived: row['is_archived'] as bool? ?? false,
+        notes: row['notes'] as String?,
+      );
+    }).toList();
+  }
+
+  Future<SupplierData> saveSupplier({
+    String? id,
+    required SupplierDraft draft,
+  }) async {
+    final domain_supplier.SupplierModel supplier =
+        domain_supplier.SupplierModel.fromPayload(
+          id: id,
+          expenseCategoryId: draft.expenseCategoryId,
+          name: draft.name,
+          notes: draft.notes,
+        );
+
+    await _ensureCategoryIsExpense(supplier.expenseCategoryId);
+    await _ensureSupplierNameUnique(
+      expenseCategoryId: supplier.expenseCategoryId,
+      name: supplier.name,
+      excludeId: supplier.id,
+    );
+
+    if (supplier.id == null) {
+      final List<SupplierData> existing = await fetchSuppliers(
+        expenseCategoryId: supplier.expenseCategoryId,
+        includeArchived: true,
+      );
+      final Map<String, dynamic> inserted = await _client
+          .from('suppliers')
+          .insert(<String, dynamic>{
+            'user_id': _user.id,
+            'expense_category_id': supplier.expenseCategoryId,
+            'name': supplier.name,
+            'notes': supplier.notes,
+            'sort_order': existing.length,
+          })
+          .select(
+            'id, expense_category_id, name, notes, is_archived, sort_order, '
+            'category:categories(id, name, type)',
+          )
+          .single();
+      return _mapSupplier(inserted);
+    }
+
+    final Map<String, dynamic> updated = await _client
+        .from('suppliers')
+        .update(<String, dynamic>{
+          'expense_category_id': supplier.expenseCategoryId,
+          'name': supplier.name,
+          'notes': supplier.notes,
+        })
+        .eq('id', supplier.id!)
         .eq('user_id', _user.id)
-        .isFilter('deleted_at', null)
+        .select(
+          'id, expense_category_id, name, notes, is_archived, sort_order, '
+          'category:categories(id, name, type)',
+        )
+        .single();
+    return _mapSupplier(updated);
+  }
+
+  Future<void> archiveSupplier({required String id}) async {
+    final String supplierId = domain.requireTrimmedText(id, 'supplier_id');
+    await _client
+        .from('suppliers')
+        .update(<String, dynamic>{'is_archived': true})
+        .eq('id', supplierId)
+        .eq('user_id', _user.id);
+  }
+
+  Future<void> _ensureCategoryIsExpense(String categoryId) async {
+    final Map<String, dynamic>? row = await _client
+        .from('categories')
+        .select('type, is_archived')
+        .eq('id', categoryId)
+        .eq('user_id', _user.id)
         .maybeSingle();
+
+    if (row == null) {
+      throw const domain.DomainValidationException(
+        code: 'supplier.category_not_found',
+        message: 'The selected category does not exist.',
+      );
+    }
+
+    if ((row['type'] as String?) != 'expense') {
+      throw const domain.DomainValidationException(
+        code: 'supplier.category_type_invalid',
+        message: 'Suppliers can only be attached to expense categories.',
+      );
+    }
+
+    if (row['is_archived'] as bool? ?? false) {
+      throw const domain.DomainValidationException(
+        code: 'supplier.category_archived',
+        message: 'Cannot create suppliers under an archived category.',
+      );
+    }
+  }
+
+  Future<void> _ensureSupplierNameUnique({
+    required String expenseCategoryId,
+    required String name,
+    String? excludeId,
+  }) async {
+    var query = _client
+        .from('suppliers')
+        .select('id')
+        .eq('user_id', _user.id)
+        .eq('expense_category_id', expenseCategoryId)
+        .eq('is_archived', false)
+        .ilike('name', name);
+    if (excludeId != null) {
+      query = query.neq('id', excludeId);
+    }
+    final List<dynamic> rows = await query.limit(1);
+    if (rows.isNotEmpty) {
+      throw const domain.DomainValidationException(
+        code: 'supplier.duplicate_name',
+        message: 'A supplier with this name already exists in this category.',
+      );
+    }
+  }
+
+  SupplierData _mapSupplier(Map<String, dynamic> row) {
+    final Map<String, dynamic>? category =
+        row['category'] as Map<String, dynamic>?;
+    return SupplierData(
+      id: row['id'] as String,
+      expenseCategoryId: row['expense_category_id'] as String,
+      expenseCategoryName: (category?['name'] as String?) ?? '',
+      name: row['name'] as String,
+      sortOrder: (row['sort_order'] as int?) ?? 0,
+      isArchived: row['is_archived'] as bool? ?? false,
+      notes: row['notes'] as String?,
+    );
+  }
+
+  Future<TransactionData?> fetchTransaction({required String id}) async {
+    final Map<String, dynamic>? row = await _fetchTransactionRow(
+      id: id,
+      includeSupplier: true,
+    );
     if (row == null) return null;
     return _mapTransaction(row);
   }
@@ -389,34 +562,105 @@ class GiderRepository {
     DateTime? end,
   }) async {
     await ensureSeedCategories();
-    var query = _client
-        .from('transactions')
-        .select(
-          'id, type, occurred_on, amount_minor, currency, payment_method, source_platform, '
-          'note, vendor, attachment_path, recurring_expense_id, created_at, '
-          'category:categories(id, name, type)',
-        )
-        .eq('user_id', _user.id)
-        .isFilter('deleted_at', null);
-
-    if (type != null) {
-      query = query.eq('type', type.dbValue);
-    }
-    if (paymentMethod != null) {
-      query = query.eq('payment_method', paymentMethod.dbValue);
-    }
-    if (start != null) {
-      query = query.gte('occurred_on', _isoDate(start));
-    }
-    if (end != null) {
-      query = query.lte('occurred_on', _isoDate(end));
-    }
-
-    final List<dynamic> rows = await query
-        .order('occurred_on', ascending: false)
-        .order('created_at', ascending: false);
+    final List<dynamic> rows = await _fetchTransactionRows(
+      includeSupplier: true,
+      type: type,
+      paymentMethod: paymentMethod,
+      start: start,
+      end: end,
+    );
 
     return rows.map((dynamic row) => _mapTransaction(row)).toList();
+  }
+
+  Future<Map<String, dynamic>?> _fetchTransactionRow({
+    required String id,
+    required bool includeSupplier,
+  }) async {
+    try {
+      return await _client
+          .from('transactions')
+          .select(
+            includeSupplier
+                ? _transactionSelectWithSupplier
+                : _transactionSelectBase,
+          )
+          .eq('id', id)
+          .eq('user_id', _user.id)
+          .isFilter('deleted_at', null)
+          .maybeSingle();
+    } on PostgrestException catch (error) {
+      if (includeSupplier && _isMissingSupplierRelationError(error)) {
+        return _fetchTransactionRow(id: id, includeSupplier: false);
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<dynamic>> _fetchTransactionRows({
+    required bool includeSupplier,
+    TransactionType? type,
+    PaymentMethodType? paymentMethod,
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      var query = _client
+          .from('transactions')
+          .select(
+            includeSupplier
+                ? _transactionSelectWithSupplier
+                : _transactionSelectBase,
+          )
+          .eq('user_id', _user.id)
+          .isFilter('deleted_at', null);
+
+      if (type != null) {
+        query = query.eq('type', type.dbValue);
+      }
+      if (paymentMethod != null) {
+        query = query.eq('payment_method', paymentMethod.dbValue);
+      }
+      if (start != null) {
+        query = query.gte('occurred_on', _isoDate(start));
+      }
+      if (end != null) {
+        query = query.lte('occurred_on', _isoDate(end));
+      }
+
+      return await query
+          .order('occurred_on', ascending: false)
+          .order('created_at', ascending: false);
+    } on PostgrestException catch (error) {
+      if (includeSupplier && _isMissingSupplierRelationError(error)) {
+        return _fetchTransactionRows(
+          includeSupplier: false,
+          type: type,
+          paymentMethod: paymentMethod,
+          start: start,
+          end: end,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  bool _isMissingSupplierRelationError(PostgrestException error) {
+    final String message = error.message.toLowerCase();
+    final String details = '${error.details ?? ''}'.toLowerCase();
+    final String code = (error.code ?? '').toLowerCase();
+    final bool mentionsSupplierRelation =
+        (message.contains('transactions') ||
+            details.contains('transactions')) &&
+        (message.contains('suppliers') || details.contains('suppliers')) &&
+        (message.contains('relationship') ||
+            details.contains('relationship') ||
+            message.contains('schema cache') ||
+            details.contains('schema cache'));
+    return mentionsSupplierRelation ||
+        code == 'pgrst200' ||
+        code == 'pgrst201' ||
+        code == 'pgrst204';
   }
 
   Future<void> createTransaction(EntryDraft draft) async {
@@ -1044,6 +1288,8 @@ class GiderRepository {
   TransactionData _mapTransaction(dynamic row) {
     final Map<String, dynamic> category =
         row['category'] as Map<String, dynamic>;
+    final Map<String, dynamic>? supplier =
+        row['supplier'] as Map<String, dynamic>?;
     final domain_transaction.TransactionModel transaction =
         domain_transaction.TransactionModel.fromPayload(
           id: row['id'] as String,
@@ -1073,6 +1319,8 @@ class GiderRepository {
           : _toUiSourcePlatformType(transaction.sourcePlatform!),
       note: transaction.note,
       vendor: transaction.vendor,
+      supplierId: (row['supplier_id'] as String?) ?? supplier?['id'] as String?,
+      supplierName: supplier?['name'] as String?,
       attachmentPath: transaction.attachmentPath,
       recurringExpenseId: transaction.recurringExpenseId,
       createdAt: DateTime.parse(row['created_at'] as String),
@@ -1202,6 +1450,7 @@ class GiderRepository {
       sourcePlatform: draft.sourcePlatform?.dbValue,
       note: draft.note,
       vendor: draft.vendor,
+      supplierId: draft.supplierId,
       attachmentPath: draft.attachmentPath,
     );
   }
@@ -1226,6 +1475,7 @@ class GiderRepository {
         'source_platform': transaction.sourcePlatform?.dbValue,
         'note': transaction.note,
         'vendor': transaction.vendor,
+        'supplier_id': transaction.supplierId,
         'attachment_path': transaction.attachmentPath,
       });
 
@@ -1255,6 +1505,7 @@ class GiderRepository {
           'source_platform': transaction.sourcePlatform?.dbValue,
           'note': transaction.note,
           'vendor': transaction.vendor,
+          'supplier_id': transaction.supplierId,
           'attachment_path': transaction.attachmentPath,
         })
         .eq('id', transaction.id!)

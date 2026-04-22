@@ -60,6 +60,7 @@ class SupabaseTransactionSyncGateway implements TransactionSyncGateway {
             'source_platform': payload['source_platform'],
             'note': payload['note'],
             'vendor': payload['vendor'],
+            'supplier_id': payload['supplier_id'],
             'attachment_path': payload['attachment_path'],
             'recurring_expense_id': payload['recurring_expense_id'],
           })
@@ -102,6 +103,7 @@ class SupabaseTransactionSyncGateway implements TransactionSyncGateway {
             'source_platform': payload['source_platform'],
             'note': payload['note'],
             'vendor': payload['vendor'],
+            'supplier_id': payload['supplier_id'],
             'attachment_path': payload['attachment_path'],
           })
           .eq('id', payload['id'])

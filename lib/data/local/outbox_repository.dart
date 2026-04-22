@@ -120,6 +120,7 @@ class OutboxRepository {
           sourcePlatform: draft.sourcePlatform?.dbValue,
           note: draft.note,
           vendor: draft.vendor,
+          supplierId: draft.supplierId,
           attachmentPath: draft.attachmentPath,
         );
 
@@ -136,6 +137,7 @@ class OutboxRepository {
       'source_platform': transaction.sourcePlatform?.dbValue,
       'note': transaction.note,
       'vendor': transaction.vendor,
+      'supplier_id': transaction.supplierId,
       'attachment_path': transaction.attachmentPath,
       'recurring_expense_id': transaction.recurringExpenseId,
     };
@@ -161,6 +163,7 @@ class OutboxRepository {
               ),
               note: Value<String?>(transaction.note),
               vendor: Value<String?>(transaction.vendor),
+              supplierId: Value<String?>(transaction.supplierId),
               attachmentPath: Value<String?>(transaction.attachmentPath),
               recurringExpenseId: Value<String?>(
                 transaction.recurringExpenseId,
@@ -217,6 +220,7 @@ class OutboxRepository {
           sourcePlatform: draft.sourcePlatform?.dbValue,
           note: draft.note,
           vendor: draft.vendor,
+          supplierId: draft.supplierId,
           attachmentPath: draft.attachmentPath,
         );
 
@@ -231,6 +235,7 @@ class OutboxRepository {
       'source_platform': transaction.sourcePlatform?.dbValue,
       'note': transaction.note,
       'vendor': transaction.vendor,
+      'supplier_id': transaction.supplierId,
       'attachment_path': transaction.attachmentPath,
     };
 

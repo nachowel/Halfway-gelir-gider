@@ -53,6 +53,28 @@ class MonthlyReportsService {
           );
         }).toList()..sort(_compareCategoryRows);
 
+    final List<MonthlyReportsSupplierRow> supplierRows =
+        current.expenseBySupplier.map((MapEntry<String, int> entry) {
+          final double sharePercent = current.expenseMinor == 0
+              ? 0
+              : (entry.value / current.expenseMinor) * 100;
+          return MonthlyReportsSupplierRow(
+            supplierLabel: current.supplierKeyToLabel[entry.key] ?? entry.key,
+            amountMinor: entry.value,
+            sharePercent: sharePercent,
+            shareFraction: current.expenseMinor == 0
+                ? 0
+                : entry.value / current.expenseMinor,
+            supplierKey: entry.key,
+            categoryContext: current.supplierPrimaryCategory[entry.key],
+          );
+        }).where((MonthlyReportsSupplierRow row) {
+          if (row.supplierKey == 'unassigned' && row.sharePercent < 3) {
+            return false;
+          }
+          return true;
+        }).toList()..sort(_compareSupplierRows);
+
     final MonthlyReportsComparison? comparison = previous.hasActivity
         ? MonthlyReportsComparison(
             previousNetMinor: previous.netMinor,
@@ -82,6 +104,7 @@ class MonthlyReportsService {
       previousMonthComparison: comparison,
       health: _buildHealth(current, strings),
       categoryBreakdownRows: categoryRows,
+      supplierBreakdownRows: supplierRows,
       insights: _buildInsights(current, strings),
       trendSeries: trendSeries,
       dailySummary: _buildDailySummary(
@@ -91,6 +114,7 @@ class MonthlyReportsService {
       ),
       isEmpty: !current.hasActivity,
       hasCategoryData: categoryRows.isNotEmpty,
+      hasSupplierData: supplierRows.isNotEmpty,
       hasTrendData: trendSeries.any((MonthlyReportsTrendPoint point) {
         return point.hasActivity;
       }),
@@ -350,6 +374,12 @@ class MonthlyReportsService {
   ) {
     final DateTime monthStart = _monthStart(month);
     final Map<String, int> expenseByCategory = <String, int>{};
+    final Map<String, int> expenseBySupplier = <String, int>{};
+    final Map<String, String> supplierKeyToLabel = <String, String>{};
+    final Map<String, Map<String, int>> expenseSuppliersByCategory = <String,
+        Map<String, int>>{};
+    final Map<String, Map<String, int>> supplierCategorySpend = <String,
+        Map<String, int>>{};
     final Map<String, int> incomeByBucket = <String, int>{};
     final Map<DateTime, _DayAccumulator> daily = <DateTime, _DayAccumulator>{};
     int incomeMinor = 0;
@@ -388,14 +418,49 @@ class MonthlyReportsService {
           );
           expenseByCategory[categoryName] =
               (expenseByCategory[categoryName] ?? 0) + transaction.amountMinor;
+
+          final String supplierKey = _supplierKey(transaction);
+          final String supplierLabel = _supplierDisplayLabel(
+            transaction,
+            strings,
+          );
+          expenseBySupplier[supplierKey] =
+              (expenseBySupplier[supplierKey] ?? 0) + transaction.amountMinor;
+          supplierKeyToLabel.putIfAbsent(
+            supplierKey,
+            () => supplierLabel,
+          );
+
+          final Map<String, int> categorySuppliers =
+              expenseSuppliersByCategory[categoryName] ?? <String, int>{};
+          categorySuppliers[supplierKey] =
+              (categorySuppliers[supplierKey] ?? 0) + transaction.amountMinor;
+          expenseSuppliersByCategory[categoryName] = categorySuppliers;
+
+          final Map<String, int> scs =
+              supplierCategorySpend[supplierKey] ?? <String, int>{};
+          scs[categoryName] =
+              (scs[categoryName] ?? 0) + transaction.amountMinor;
+          supplierCategorySpend[supplierKey] = scs;
           break;
       }
     }
 
     final List<MapEntry<String, int>> sortedExpenseByCategory =
         expenseByCategory.entries.toList()..sort(_compareNamedTotals);
+    final List<MapEntry<String, int>> sortedExpenseBySupplier =
+        expenseBySupplier.entries.toList()..sort(_compareNamedTotals);
     final List<MapEntry<String, int>> sortedIncomeByBucket =
         incomeByBucket.entries.toList()..sort(_compareNamedTotals);
+
+    for (final MapEntry<String, Map<String, int>> entry
+        in expenseSuppliersByCategory.entries) {
+      final List<MapEntry<String, int>> sorted = entry.value.entries.toList()
+        ..sort(_compareNamedTotals);
+      expenseSuppliersByCategory[entry.key] = Map<String, int>.fromEntries(
+        sorted,
+      );
+    }
 
     _DayStat? bestNetDay;
     _DayStat? worstNetDay;
@@ -432,11 +497,31 @@ class MonthlyReportsService {
       }
     }
 
+    final Map<String, String> supplierPrimaryCategory = <String, String>{};
+    for (final MapEntry<String, Map<String, int>> entry
+        in supplierCategorySpend.entries) {
+      String? topCategory;
+      int topAmount = -1;
+      for (final MapEntry<String, int> catEntry in entry.value.entries) {
+        if (catEntry.value > topAmount) {
+          topAmount = catEntry.value;
+          topCategory = catEntry.key;
+        }
+      }
+      if (topCategory != null) {
+        supplierPrimaryCategory[entry.key] = topCategory;
+      }
+    }
+
     return _MonthAggregate(
       monthStart: monthStart,
       incomeMinor: incomeMinor,
       expenseMinor: expenseMinor,
       expenseByCategory: sortedExpenseByCategory,
+      expenseBySupplier: sortedExpenseBySupplier,
+      supplierKeyToLabel: supplierKeyToLabel,
+      supplierPrimaryCategory: supplierPrimaryCategory,
+      expenseSuppliersByCategory: expenseSuppliersByCategory,
       incomeByBucket: sortedIncomeByBucket,
       bestNetDay: bestNetDay,
       worstNetDay: worstNetDay,
@@ -455,12 +540,141 @@ class MonthlyReportsService {
     return a.categoryName.toLowerCase().compareTo(b.categoryName.toLowerCase());
   }
 
+  int _compareSupplierRows(
+    MonthlyReportsSupplierRow a,
+    MonthlyReportsSupplierRow b,
+  ) {
+    final bool aIsUnassigned = a.supplierKey == 'unassigned';
+    final bool bIsUnassigned = b.supplierKey == 'unassigned';
+    if (aIsUnassigned && !bIsUnassigned) {
+      return 1;
+    }
+    if (!aIsUnassigned && bIsUnassigned) {
+      return -1;
+    }
+    final int amountCompare = b.amountMinor.compareTo(a.amountMinor);
+    if (amountCompare != 0) {
+      return amountCompare;
+    }
+    return a.supplierLabel.toLowerCase().compareTo(
+      b.supplierLabel.toLowerCase(),
+    );
+  }
+
   int _compareNamedTotals(MapEntry<String, int> a, MapEntry<String, int> b) {
     final int amountCompare = b.value.compareTo(a.value);
     if (amountCompare != 0) {
       return amountCompare;
     }
     return a.key.toLowerCase().compareTo(b.key.toLowerCase());
+  }
+
+  String _supplierKey(TransactionData transaction) {
+    final String? sid = transaction.supplierId?.trim();
+    final String? sName = transaction.supplierName?.trim();
+    if (sid != null && sid.isNotEmpty && sName != null && sName.isNotEmpty) {
+      return 'supplier:$sid';
+    }
+    final String? v = transaction.vendor?.trim();
+    if (v != null && v.isNotEmpty) {
+      return 'vendor:${v.toLowerCase()}';
+    }
+    if (sid != null && sid.isNotEmpty) {
+      return 'former_supplier';
+    }
+    return 'unassigned';
+  }
+
+  String _supplierDisplayLabel(
+    TransactionData transaction,
+    AppLocalizations strings,
+  ) {
+    final String? sName = transaction.supplierName?.trim();
+    if (sName != null && sName.isNotEmpty) {
+      return sName;
+    }
+    final String? v = transaction.vendor?.trim();
+    if (v != null && v.isNotEmpty) {
+      return v;
+    }
+    final String? sid = transaction.supplierId?.trim();
+    if (sid != null && sid.isNotEmpty) {
+      return strings.formerSupplier;
+    }
+    return strings.unassigned;
+  }
+
+  List<MonthlyReportsCategorySupplierRow> buildCategorySupplierRows(
+    MonthlyReportsDataset dataset,
+    String categoryName,
+    DateTime month,
+    AppLocalizations strings,
+  ) {
+    final _MonthAggregate aggregate = _aggregateMonth(
+      dataset.transactions,
+      month,
+      strings,
+    );
+    final Map<String, int>? suppliers = aggregate.expenseSuppliersByCategory[categoryName];
+    if (suppliers == null || suppliers.isEmpty) {
+      return <MonthlyReportsCategorySupplierRow>[];
+    }
+    final int categoryTotal = aggregate.expenseByCategory
+            .firstWhere(
+              (MapEntry<String, int> e) => e.key == categoryName,
+              orElse: () => const MapEntry<String, int>('', 0),
+            )
+            .value;
+    final List<MapEntry<String, int>> entries = suppliers.entries.toList()
+      ..sort(_compareNamedTotals);
+    return entries.map((MapEntry<String, int> entry) {
+      return MonthlyReportsCategorySupplierRow(
+        supplierLabel: aggregate.supplierKeyToLabel[entry.key] ?? entry.key,
+        amountMinor: entry.value,
+        sharePercent: categoryTotal == 0
+            ? 0
+            : (entry.value / categoryTotal) * 100,
+        shareFraction: categoryTotal == 0 ? 0 : entry.value / categoryTotal,
+      );
+    }).toList();
+  }
+
+  List<SupplierMonthSpendRow> buildSupplierTrendRows(
+    MonthlyReportsDataset dataset,
+    String supplierKey,
+    DateTime selectedMonth,
+    AppLocalizations strings,
+  ) {
+    final DateTime endMonth = _monthStart(selectedMonth);
+    final DateTime startMonth = DateTime(
+      endMonth.year,
+      endMonth.month - 5,
+      1,
+    );
+    final List<SupplierMonthSpendRow> rows = <SupplierMonthSpendRow>[];
+    for (DateTime month = startMonth;
+        !month.isAfter(endMonth);
+        month = DateTime(month.year, month.month + 1, 1)) {
+      final _MonthAggregate aggregate = _aggregateMonth(
+        dataset.transactions,
+        month,
+        strings,
+      );
+      final int total = aggregate.expenseBySupplier
+              .firstWhere(
+                (MapEntry<String, int> e) => e.key == supplierKey,
+                orElse: () => const MapEntry<String, int>('', 0),
+              )
+              .value;
+      rows.add(
+        SupplierMonthSpendRow(
+          monthStart: aggregate.monthStart,
+          monthLabel: strings.monthShort(aggregate.monthStart),
+          totalMinor: total,
+        ),
+      );
+    }
+    return rows;
   }
 
   String _incomeBucketLabel(
@@ -523,6 +737,10 @@ class _MonthAggregate {
     required this.incomeMinor,
     required this.expenseMinor,
     required this.expenseByCategory,
+    required this.expenseBySupplier,
+    required this.supplierKeyToLabel,
+    required this.supplierPrimaryCategory,
+    required this.expenseSuppliersByCategory,
     required this.incomeByBucket,
     required this.bestNetDay,
     required this.worstNetDay,
@@ -533,6 +751,10 @@ class _MonthAggregate {
   final int incomeMinor;
   final int expenseMinor;
   final List<MapEntry<String, int>> expenseByCategory;
+  final List<MapEntry<String, int>> expenseBySupplier;
+  final Map<String, String> supplierKeyToLabel;
+  final Map<String, String> supplierPrimaryCategory;
+  final Map<String, Map<String, int>> expenseSuppliersByCategory;
   final List<MapEntry<String, int>> incomeByBucket;
   final _DayStat? bestNetDay;
   final _DayStat? worstNetDay;

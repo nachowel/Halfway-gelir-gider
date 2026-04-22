@@ -5,6 +5,7 @@ import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/features/expense_detail/domain/expense_detail_models.dart';
 import 'package:gider/features/expense_detail/presentation/expense_detail_screen.dart';
+import 'package:gider/l10n/app_localizations.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -536,6 +537,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const ExpenseDetailScreen(),
       ),
     );

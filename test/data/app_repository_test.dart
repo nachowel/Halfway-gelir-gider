@@ -308,8 +308,55 @@ void main() {
       expect(requestBody!['payment_method'], 'card');
       expect(requestBody!['source_platform'], isNull);
       expect(requestBody!['vendor'], 'Bakery Co');
+      expect(requestBody!['supplier_id'], isNull);
       expect(requestBody!['note'], 'weekly stock');
     });
+
+    test(
+      'createTransaction preserves supplier_id and vendor for expense payloads',
+      () async {
+        Map<String, dynamic>? requestBody;
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'type') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{'type': 'expense'},
+              ]);
+            }
+
+            if (request.method == 'POST' &&
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+              return _jsonResponse(
+                request,
+                <Map<String, dynamic>>[],
+                statusCode: 201,
+              );
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        await repository.createTransaction(
+          EntryDraft(
+            type: TransactionType.expense,
+            occurredOn: DateTime(2026, 4, 20),
+            amountMinor: 8500,
+            categoryId: 'category-1',
+            paymentMethod: PaymentMethodType.card,
+            vendor: 'Bakery Co',
+            supplierId: 'supplier-1',
+          ),
+        );
+
+        expect(requestBody, isNotNull);
+        expect(requestBody!['vendor'], 'Bakery Co');
+        expect(requestBody!['supplier_id'], 'supplier-1');
+      },
+    );
 
     test(
       'createTransaction preserves source_platform for Uber settlement',
@@ -355,8 +402,59 @@ void main() {
         expect(requestBody!['source_platform'], 'uber');
         expect(requestBody!['payment_method'], 'bank_transfer');
         expect(requestBody!['occurred_on'], '2026-04-19');
+        expect(requestBody!['supplier_id'], isNull);
       },
     );
+
+    test('createTransaction rejects supplier_id on income payloads', () async {
+      bool insertCalled = false;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              request.url.queryParameters['select'] == 'type') {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'income'},
+            ]);
+          }
+
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/rest/v1/transactions')) {
+            insertCalled = true;
+            return _jsonResponse(
+              request,
+              <Map<String, dynamic>>[],
+              statusCode: 201,
+            );
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await expectLater(
+        repository.createTransaction(
+          EntryDraft(
+            type: TransactionType.income,
+            occurredOn: DateTime(2026, 4, 19),
+            amountMinor: 124000,
+            categoryId: 'category-1',
+            paymentMethod: PaymentMethodType.bankTransfer,
+            sourcePlatform: SourcePlatformType.uber,
+            supplierId: 'supplier-1',
+          ),
+        ),
+        throwsA(
+          isA<DomainValidationException>().having(
+            (DomainValidationException error) => error.code,
+            'code',
+            'transaction.supplier_expense_only',
+          ),
+        ),
+      );
+
+      expect(insertCalled, isFalse);
+    });
 
     test('updateTransaction patches all draft fields on owned row', () async {
       Map<String, dynamic>? patchBody;
@@ -416,11 +514,56 @@ void main() {
       expect(patchBody!['payment_method'], 'card');
       expect(patchBody!['source_platform'], 'just_eat');
       expect(patchBody!['note'], 'settlement correction');
+      expect(patchBody!['supplier_id'], isNull);
       expect(patchBody!.containsKey('user_id'), isFalse);
       expect(patchUrl, isNotNull);
       expect(patchUrl!.queryParameters['id'], 'eq.tx-1');
       expect(patchUrl!.queryParameters['user_id'], 'eq.user-1');
     });
+
+    test(
+      'updateTransaction preserves supplier_id and vendor for expense payloads',
+      () async {
+        Map<String, dynamic>? patchBody;
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'type') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{'type': 'expense'},
+              ]);
+            }
+
+            if (request.method == 'PATCH' &&
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              patchBody = jsonDecode(request.body) as Map<String, dynamic>;
+              return _jsonResponse(request, <Map<String, dynamic>>[]);
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        await repository.updateTransaction(
+          id: 'tx-1',
+          draft: EntryDraft(
+            type: TransactionType.expense,
+            occurredOn: DateTime(2026, 4, 19),
+            amountMinor: 156000,
+            categoryId: 'category-1',
+            paymentMethod: PaymentMethodType.card,
+            vendor: 'Wholesale Ltd',
+            supplierId: 'supplier-1',
+            note: 'restock',
+          ),
+        );
+
+        expect(patchBody, isNotNull);
+        expect(patchBody!['vendor'], 'Wholesale Ltd');
+        expect(patchBody!['supplier_id'], 'supplier-1');
+      },
+    );
 
     test('deleteTransaction soft-deletes via deleted_at PATCH', () async {
       Map<String, dynamic>? patchBody;
@@ -995,6 +1138,232 @@ void main() {
         expect(settings.weekStartsOn, 1);
       },
     );
+
+    test(
+      'fetchTransactions falls back when supplier relation is missing from schema cache',
+      () async {
+        int transactionRequestCount = 0;
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'id,type,name') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'seed-income',
+                  'type': 'income',
+                  'name': 'Cash Sales',
+                },
+              ]);
+            }
+
+            if (request.method == 'POST' &&
+                request.url.path.endsWith('/rest/v1/categories')) {
+              return _jsonResponse(
+                request,
+                <Map<String, dynamic>>[],
+                statusCode: 201,
+              );
+            }
+
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              transactionRequestCount += 1;
+              if (transactionRequestCount == 1) {
+                expect(
+                  request.url.queryParameters['select'],
+                  contains('supplier:suppliers(id,name)'),
+                );
+                return _jsonResponse(request, <String, dynamic>{
+                  'code': 'PGRST200',
+                  'message':
+                      "Could not find a relationship between 'transactions' and 'suppliers' in the schema cache",
+                  'details': null,
+                  'hint': null,
+                }, statusCode: 400);
+              }
+
+              expect(
+                request.url.queryParameters['select'],
+                isNot(contains('supplier:suppliers(id,name)')),
+              );
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'tx-1',
+                  'type': 'income',
+                  'occurred_on': '2026-04-20',
+                  'amount_minor': 1200,
+                  'currency': 'GBP',
+                  'payment_method': 'cash',
+                  'source_platform': null,
+                  'note': null,
+                  'vendor': null,
+                  'attachment_path': null,
+                  'recurring_expense_id': null,
+                  'supplier_id': 'supplier-1',
+                  'created_at': '2026-04-20T10:00:00Z',
+                  'category': <String, dynamic>{
+                    'id': 'category-1',
+                    'name': 'Cash Sales',
+                    'type': 'income',
+                  },
+                },
+              ]);
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        final List<TransactionData> transactions = await repository
+            .fetchTransactions();
+
+        expect(transactionRequestCount, 2);
+        expect(transactions, hasLength(1));
+        expect(transactions.single.id, 'tx-1');
+        expect(transactions.single.supplierId, 'supplier-1');
+        expect(transactions.single.supplierName, isNull);
+      },
+    );
+
+    test(
+      'fetchTransaction falls back when supplier relation is missing from schema cache',
+      () async {
+        int transactionRequestCount = 0;
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/transactions')) {
+              transactionRequestCount += 1;
+              if (transactionRequestCount == 1) {
+                expect(
+                  request.url.queryParameters['select'],
+                  contains('supplier:suppliers(id,name)'),
+                );
+                return _jsonResponse(request, <String, dynamic>{
+                  'code': 'PGRST200',
+                  'message':
+                      "Could not find a relationship between 'transactions' and 'suppliers' in the schema cache",
+                  'details': null,
+                  'hint': null,
+                }, statusCode: 400);
+              }
+
+              expect(
+                request.url.queryParameters['select'],
+                isNot(contains('supplier:suppliers(id,name)')),
+              );
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'tx-1',
+                  'type': 'expense',
+                  'occurred_on': '2026-04-20',
+                  'amount_minor': 5000,
+                  'currency': 'GBP',
+                  'payment_method': 'card',
+                  'source_platform': null,
+                  'note': 'stock run',
+                  'vendor': 'Wholesale Ltd',
+                  'attachment_path': null,
+                  'recurring_expense_id': null,
+                  'supplier_id': 'supplier-1',
+                  'created_at': '2026-04-20T10:00:00Z',
+                  'category': <String, dynamic>{
+                    'id': 'category-1',
+                    'name': 'Supplies',
+                    'type': 'expense',
+                  },
+                },
+              ]);
+            }
+
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        final TransactionData? transaction = await repository.fetchTransaction(
+          id: 'tx-1',
+        );
+
+        expect(transactionRequestCount, 2);
+        expect(transaction, isNotNull);
+        expect(transaction!.id, 'tx-1');
+        expect(transaction.supplierId, 'supplier-1');
+        expect(transaction.supplierName, isNull);
+      },
+    );
+
+    test('fetchTransactions maps supplier relation for historical expense rows', () async {
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              request.url.queryParameters['select'] == 'id,type,name') {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'seed-expense',
+                'type': 'expense',
+                'name': 'Rent',
+              },
+            ]);
+          }
+
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/rest/v1/categories')) {
+            return _jsonResponse(
+              request,
+              <Map<String, dynamic>>[],
+              statusCode: 201,
+            );
+          }
+
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/transactions')) {
+            expect(
+              request.url.queryParameters['select'],
+              contains('supplier:suppliers(id,name)'),
+            );
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'tx-joined',
+                'type': 'expense',
+                'occurred_on': '2026-04-20',
+                'amount_minor': 5000,
+                'currency': 'GBP',
+                'payment_method': 'card',
+                'source_platform': null,
+                'note': 'stock run',
+                'vendor': 'Wholesale Ltd',
+                'attachment_path': null,
+                'recurring_expense_id': null,
+                'supplier_id': 'supplier-joined',
+                'created_at': '2026-04-20T10:00:00Z',
+                'category': <String, dynamic>{
+                  'id': 'category-1',
+                  'name': 'Supplies',
+                  'type': 'expense',
+                },
+                'supplier': <String, dynamic>{
+                  'id': 'supplier-joined',
+                  'name': 'Archived Supplier',
+                },
+              },
+            ]);
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      final List<TransactionData> transactions = await repository
+          .fetchTransactions(type: TransactionType.expense);
+
+      expect(transactions, hasLength(1));
+      expect(transactions.single.id, 'tx-joined');
+      expect(transactions.single.vendor, 'Wholesale Ltd');
+      expect(transactions.single.supplierId, 'supplier-joined');
+      expect(transactions.single.supplierName, 'Archived Supplier');
+    });
 
     test(
       'fetchBusinessSettings does not write on read when profile is missing',
@@ -1747,6 +2116,281 @@ void main() {
       expect(patchBody, isNotNull);
       expect(patchBody!['is_active'], false);
       expect(patchBody!.containsKey('name'), isFalse);
+    });
+
+    test('saveSupplier rejects attaching to an income category', () async {
+      bool insertCalled = false;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              request.url.queryParameters['select'] == 'type,is_archived') {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'income', 'is_archived': false},
+            ]);
+          }
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/rest/v1/suppliers')) {
+            insertCalled = true;
+            return _jsonResponse(request, <Map<String, dynamic>>[]);
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await expectLater(
+        repository.saveSupplier(
+          draft: const SupplierDraft(
+            expenseCategoryId: 'cat-income',
+            name: 'Acme Ltd',
+          ),
+        ),
+        throwsA(
+          isA<DomainValidationException>().having(
+            (DomainValidationException e) => e.code,
+            'code',
+            'supplier.category_type_invalid',
+          ),
+        ),
+      );
+      expect(insertCalled, isFalse);
+    });
+
+    test(
+      'saveSupplier rejects duplicate name within the same category',
+      () async {
+        bool insertCalled = false;
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/categories') &&
+                request.url.queryParameters['select'] == 'type,is_archived') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{'type': 'expense', 'is_archived': false},
+              ]);
+            }
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/suppliers') &&
+                request.url.queryParameters['select'] == 'id') {
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{'id': 'existing-supplier'},
+              ]);
+            }
+            if (request.method == 'POST' &&
+                request.url.path.endsWith('/rest/v1/suppliers')) {
+              insertCalled = true;
+              return _jsonResponse(request, <Map<String, dynamic>>[]);
+            }
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        await expectLater(
+          repository.saveSupplier(
+            draft: const SupplierDraft(
+              expenseCategoryId: 'cat-expense',
+              name: 'Acme Ltd',
+            ),
+          ),
+          throwsA(
+            isA<DomainValidationException>().having(
+              (DomainValidationException e) => e.code,
+              'code',
+              'supplier.duplicate_name',
+            ),
+          ),
+        );
+        expect(insertCalled, isFalse);
+      },
+    );
+
+    test('saveSupplier rejects archived expense categories', () async {
+      bool insertCalled = false;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/categories') &&
+              request.url.queryParameters['select'] == 'type,is_archived') {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{'type': 'expense', 'is_archived': true},
+            ]);
+          }
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/rest/v1/suppliers')) {
+            insertCalled = true;
+            return _jsonResponse(request, <Map<String, dynamic>>[]);
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await expectLater(
+        repository.saveSupplier(
+          draft: const SupplierDraft(
+            expenseCategoryId: 'cat-expense',
+            name: 'Acme Ltd',
+          ),
+        ),
+        throwsA(
+          isA<DomainValidationException>().having(
+            (DomainValidationException e) => e.code,
+            'code',
+            'supplier.category_archived',
+          ),
+        ),
+      );
+      expect(insertCalled, isFalse);
+    });
+
+    test('archiveSupplier patches is_archived to true', () async {
+      Map<String, dynamic>? patchBody;
+      Uri? patchUrl;
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'PATCH' &&
+              request.url.path.endsWith('/rest/v1/suppliers')) {
+            patchUrl = request.url;
+            patchBody = jsonDecode(request.body) as Map<String, dynamic>;
+            return _jsonResponse(request, <Map<String, dynamic>>[]);
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      await repository.archiveSupplier(id: 'supp-1');
+
+      expect(patchBody, isNotNull);
+      expect(patchBody!['is_archived'], isTrue);
+      expect(patchUrl!.queryParameters['id'], 'eq.supp-1');
+      expect(patchUrl!.queryParameters['user_id'], 'eq.user-1');
+    });
+
+    test(
+      'fetchSuppliers filters archived rows by default and honours category filter',
+      () async {
+        final List<Uri> observedUrls = <Uri>[];
+        final GiderRepository repository = GiderRepository(
+          _buildClient((http.Request request) async {
+            if (request.method == 'GET' &&
+                request.url.path.endsWith('/rest/v1/suppliers')) {
+              observedUrls.add(request.url);
+              return _jsonResponse(request, <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'id': 'supp-1',
+                  'expense_category_id': 'cat-expense',
+                  'name': 'Acme Ltd',
+                  'notes': null,
+                  'is_archived': false,
+                  'sort_order': 0,
+                  'category': <String, dynamic>{
+                    'id': 'cat-expense',
+                    'name': 'Rent',
+                    'type': 'expense',
+                  },
+                },
+              ]);
+            }
+            fail('Unexpected HTTP call: ${request.method} ${request.url}');
+          }),
+        );
+
+        final List<SupplierData> result = await repository.fetchSuppliers(
+          expenseCategoryId: 'cat-expense',
+        );
+
+        expect(result, hasLength(1));
+        expect(result.single.name, 'Acme Ltd');
+        expect(result.single.expenseCategoryName, 'Rent');
+        expect(observedUrls, hasLength(1));
+        expect(observedUrls.single.queryParameters['is_archived'], 'eq.false');
+        expect(
+          observedUrls.single.queryParameters['expense_category_id'],
+          'eq.cat-expense',
+        );
+      },
+    );
+
+    test('fetchSuppliers includes archived rows when explicitly requested', () async {
+      final List<Uri> observedUrls = <Uri>[];
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/suppliers')) {
+            observedUrls.add(request.url);
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'supp-archived',
+                'expense_category_id': 'cat-expense',
+                'name': 'Archived Ltd',
+                'notes': null,
+                'is_archived': true,
+                'sort_order': 1,
+                'category': <String, dynamic>{
+                  'id': 'cat-expense',
+                  'name': 'Rent',
+                  'type': 'expense',
+                },
+              },
+            ]);
+          }
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      final List<SupplierData> result = await repository.fetchSuppliers(
+        includeArchived: true,
+      );
+
+      expect(result, hasLength(1));
+      expect(result.single.isArchived, isTrue);
+      expect(observedUrls.single.queryParameters.containsKey('is_archived'), isFalse);
+    });
+
+    test('fetchTransaction keeps archived supplier links intact', () async {
+      final GiderRepository repository = GiderRepository(
+        _buildClient((http.Request request) async {
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/rest/v1/transactions')) {
+            return _jsonResponse(request, <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'tx-1',
+                'type': 'expense',
+                'occurred_on': '2026-04-20',
+                'amount_minor': 5000,
+                'currency': 'GBP',
+                'payment_method': 'card',
+                'source_platform': null,
+                'note': 'stock run',
+                'vendor': 'Wholesale Ltd',
+                'attachment_path': null,
+                'recurring_expense_id': null,
+                'supplier_id': 'supplier-archived',
+                'created_at': '2026-04-20T10:00:00Z',
+                'category': <String, dynamic>{
+                  'id': 'category-1',
+                  'name': 'Supplies',
+                  'type': 'expense',
+                },
+                'supplier': <String, dynamic>{
+                  'id': 'supplier-archived',
+                  'name': 'Archived Supplier',
+                },
+              },
+            ]);
+          }
+
+          fail('Unexpected HTTP call: ${request.method} ${request.url}');
+        }),
+      );
+
+      final TransactionData? transaction = await repository.fetchTransaction(
+        id: 'tx-1',
+      );
+
+      expect(transaction, isNotNull);
+      expect(transaction!.supplierId, 'supplier-archived');
+      expect(transaction.supplierName, 'Archived Supplier');
+      expect(transaction.vendor, 'Wholesale Ltd');
     });
 
     test('fetchBusinessSettings is read-only when both rows exist', () async {

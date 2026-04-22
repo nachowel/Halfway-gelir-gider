@@ -52,36 +52,61 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
         child: HiFiScreenBackground(
           tone: HiFiScreenTone.warm,
           child: SafeArea(
-            bottom: false,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-                AppSpacing.screenSide,
-                AppSpacing.xxl,
-              ),
+            child: Column(
               children: <Widget>[
-                _IncomeHeader(
-                  onBack: () async {
-                    final bool didPop = await Navigator.of(context).maybePop();
-                    if (!didPop && context.mounted) {
-                      context.go('/summary');
-                    }
-                  },
-                  onInfoTap: () => _showInfoSheet(context),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenSide,
+                      AppSpacing.sm,
+                      AppSpacing.screenSide,
+                      AppSpacing.lg,
+                    ),
+                    children: <Widget>[
+                      _IncomeHeader(
+                        onBack: () async {
+                          final bool didPop = await Navigator.of(
+                            context,
+                          ).maybePop();
+                          if (!didPop && context.mounted) {
+                            context.go('/summary');
+                          }
+                        },
+                        onInfoTap: () => _showInfoSheet(context),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      _PeriodFilterBar(
+                        selectedPreset: _query.preset,
+                        rangeLabel: previewRange.label,
+                        onPresetSelected: _handlePresetSelected,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      viewModelAsync.when(
+                        loading: () => const _LoadingState(),
+                        error: (_, __) => const _ErrorState(),
+                        data: (IncomeDetailViewModel viewModel) {
+                          return _IncomeDetailContent(viewModel: viewModel);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                _PeriodFilterBar(
-                  selectedPreset: _query.preset,
-                  rangeLabel: previewRange.label,
-                  onPresetSelected: _handlePresetSelected,
-                ),
-                const SizedBox(height: AppSpacing.lg),
                 viewModelAsync.when(
-                  loading: () => const _LoadingState(),
-                  error: (_, __) => const _ErrorState(),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
                   data: (IncomeDetailViewModel viewModel) {
-                    return _IncomeDetailContent(viewModel: viewModel);
+                    return SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenSide,
+                          0,
+                          AppSpacing.screenSide,
+                          AppSpacing.sm,
+                        ),
+                        child: _InsightsCard(viewModel: viewModel),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -205,8 +230,6 @@ class _IncomeDetailContent extends StatelessWidget {
         _DailyIncomeChartCard(viewModel: viewModel),
         const SizedBox(height: AppSpacing.lg),
         _BreakdownSection(viewModel: viewModel),
-        const SizedBox(height: AppSpacing.lg),
-        _InsightsCard(viewModel: viewModel),
       ],
     );
   }

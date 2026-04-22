@@ -19,7 +19,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? openAppDatabaseConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -39,6 +39,9 @@ class AppDatabase extends _$AppDatabase {
           'create unique index if not exists '
           'uq_outbox_entries_dedupe_key on outbox_entries (dedupe_key)',
         );
+      }
+      if (from < 3) {
+        await m.addColumn(localTransactions, localTransactions.supplierId);
       }
     },
   );

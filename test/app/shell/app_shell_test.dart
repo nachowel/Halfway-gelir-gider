@@ -3,16 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/shell/app_shell.dart';
-import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/shared/hi_fi/hi_fi_fab.dart';
+import '../../support/localization_test_harness.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Widget buildTestApp(Widget child) {
-    AppTheme.configure();
     return ProviderScope(
-      child: MaterialApp(theme: AppTheme.light(), home: child),
+      child: buildLocalizedTestApp(home: child),
     );
   }
 
@@ -50,8 +49,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: AppTheme.light(),
+        child: buildLocalizedTestApp(
           home: const AppShell(
             currentLocation: '/summary',
             child: Center(child: Text('Summary body')),

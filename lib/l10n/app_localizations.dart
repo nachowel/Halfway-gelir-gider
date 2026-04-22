@@ -138,6 +138,14 @@ class AppLocalizations {
     AppLocale.en => 'Delete',
     AppLocale.tr => 'Sil',
   };
+  String get deleteEntryConfirmTitle => switch (locale) {
+    AppLocale.en => 'Are you sure?',
+    AppLocale.tr => 'Emin misiniz?',
+  };
+  String get deleteEntryConfirmMessage => switch (locale) {
+    AppLocale.en => 'This will permanently delete this entry.',
+    AppLocale.tr => 'Bu kayit kalici olarak silinecek.',
+  };
   String get remove => switch (locale) {
     AppLocale.en => 'Remove',
     AppLocale.tr => 'Kaldir',
@@ -422,6 +430,114 @@ class AppLocalizations {
     AppLocale.en => 'Categories',
     AppLocale.tr => 'Kategoriler',
   };
+  String get suppliers => switch (locale) {
+    AppLocale.en => 'Suppliers',
+    AppLocale.tr => 'Tedarikçiler',
+  };
+  String get addSupplier => switch (locale) {
+    AppLocale.en => 'Add supplier',
+    AppLocale.tr => 'Tedarikçi ekle',
+  };
+  String get editSupplier => switch (locale) {
+    AppLocale.en => 'Edit supplier',
+    AppLocale.tr => 'Tedarikçiyi düzenle',
+  };
+  String get supplierName => switch (locale) {
+    AppLocale.en => 'Supplier name',
+    AppLocale.tr => 'Tedarikçi adı',
+  };
+  String get chooseSupplier => switch (locale) {
+    AppLocale.en => 'Choose supplier',
+    AppLocale.tr => 'Tedarikçi seç',
+  };
+  String get noSupplier => switch (locale) {
+    AppLocale.en => 'No supplier',
+    AppLocale.tr => 'Tedarikçi yok',
+  };
+  String get clearSupplier => switch (locale) {
+    AppLocale.en => 'Clear supplier',
+    AppLocale.tr => 'Tedarikçiyi temizle',
+  };
+  String get searchSuppliersHint => switch (locale) {
+    AppLocale.en => 'Search suppliers',
+    AppLocale.tr => 'Tedarikçi ara',
+  };
+  String get loadingSuppliers => switch (locale) {
+    AppLocale.en => 'Loading suppliers...',
+    AppLocale.tr => 'Tedarikçiler yükleniyor...',
+  };
+  String get couldNotLoadSuppliers => switch (locale) {
+    AppLocale.en => 'Could not load suppliers.',
+    AppLocale.tr => 'Tedarikçiler yüklenemedi.',
+  };
+  String get noSuppliersForCategory => switch (locale) {
+    AppLocale.en => 'No suppliers in this category yet.',
+    AppLocale.tr => 'Bu kategoride henüz tedarikçi yok.',
+  };
+  String get noSuppliersMatchSearch => switch (locale) {
+    AppLocale.en => 'No suppliers match this search.',
+    AppLocale.tr => 'Bu aramayla eşleşen tedarikçi yok.',
+  };
+  String get chooseCategoryFirstForSuppliers => switch (locale) {
+    AppLocale.en => 'Choose a category first to pick a supplier.',
+    AppLocale.tr => 'Tedarikçi seçmek için önce kategori seçin.',
+  };
+  String get optionalSupplierSelectionHelper => switch (locale) {
+    AppLocale.en => 'Optional · link a saved supplier to this expense',
+    AppLocale.tr => 'İsteğe bağlı · bu gidere kayıtlı bir tedarikçi bağlayın',
+  };
+  String get archivedLabel => switch (locale) {
+    AppLocale.en => 'Archived',
+    AppLocale.tr => 'Arşivli',
+  };
+  String get archivedSupplierLinkedHelper => switch (locale) {
+    AppLocale.en =>
+      'This expense is still linked to an archived supplier. You can keep it or clear it.',
+    AppLocale.tr =>
+      'Bu gider hâlâ arşivlenmiş bir tedarikçiye bağlı. Olduğu gibi bırakabilir veya temizleyebilirsiniz.',
+  };
+  String get selectCategory => switch (locale) {
+    AppLocale.en => 'Select category',
+    AppLocale.tr => 'Kategori seç',
+  };
+  String get archivedSuppliers => switch (locale) {
+    AppLocale.en => 'Archived suppliers',
+    AppLocale.tr => 'Arşivlenmiş tedarikçiler',
+  };
+  String get noSuppliersYet => switch (locale) {
+    AppLocale.en => 'No suppliers yet',
+    AppLocale.tr => 'Henüz tedarikçi yok',
+  };
+  String get supplierAdded => switch (locale) {
+    AppLocale.en => 'Supplier added',
+    AppLocale.tr => 'Tedarikçi eklendi',
+  };
+  String get supplierUpdated => switch (locale) {
+    AppLocale.en => 'Supplier updated',
+    AppLocale.tr => 'Tedarikçi güncellendi',
+  };
+  String get supplierArchived => switch (locale) {
+    AppLocale.en => 'Supplier archived',
+    AppLocale.tr => 'Tedarikçi arşivlendi',
+  };
+  String get categoryIsRequired => switch (locale) {
+    AppLocale.en => 'Category is required',
+    AppLocale.tr => 'Kategori zorunludur',
+  };
+  String get supplierNameIsRequired => switch (locale) {
+    AppLocale.en => 'Supplier name is required',
+    AppLocale.tr => 'Tedarikçi adı zorunludur',
+  };
+  String get supplierDuplicateInCategory => switch (locale) {
+    AppLocale.en =>
+      'A supplier with this name already exists in this category',
+    AppLocale.tr =>
+      'Bu kategori içinde aynı isimde bir tedarikçi zaten var',
+  };
+  String get archiveSupplier => switch (locale) {
+    AppLocale.en => 'Archive supplier',
+    AppLocale.tr => 'Tedarikçiyi arşivle',
+  };
   String get recurringExpenses => switch (locale) {
     AppLocale.en => 'Recurring expenses',
     AppLocale.tr => 'Tekrarlayan giderler',
@@ -683,6 +799,26 @@ class AppLocalizations {
     AppLocale.en => 'Daily summary',
     AppLocale.tr => 'Gunluk ozet',
   };
+  String get supplierBreakdown => switch (locale) {
+    AppLocale.en => 'Supplier breakdown',
+    AppLocale.tr => 'Tedarikci dagilimi',
+  };
+  String get topSuppliersThisMonth => switch (locale) {
+    AppLocale.en => 'Top suppliers this month',
+    AppLocale.tr => 'Bu ayki one cikan tedarikciler',
+  };
+  String get formerSupplier => switch (locale) {
+    AppLocale.en => 'Former supplier',
+    AppLocale.tr => 'Eski tedarikci',
+  };
+  String get unassigned => switch (locale) {
+    AppLocale.en => 'Unassigned',
+    AppLocale.tr => 'Atanmamis',
+  };
+  String get noSuppliersThisMonth => switch (locale) {
+    AppLocale.en => 'No suppliers this month',
+    AppLocale.tr => 'Bu ay tedarikci yok',
+  };
   String get incomeUpper => switch (locale) {
     AppLocale.en => 'INCOME',
     AppLocale.tr => 'GELIR',
@@ -918,6 +1054,47 @@ class AppLocalizations {
     AppLocale.en => 'Payment method',
     AppLocale.tr => 'Odeme yontemi',
   };
+  String get incomeType => switch (locale) {
+    AppLocale.en => 'Income type',
+    AppLocale.tr => 'Gelir tipi',
+  };
+  String get incomeTypeHelper => switch (locale) {
+    AppLocale.en => 'One choice fills category and payment automatically.',
+    AppLocale.tr => 'Tek secim kategori ve odeme yontemini otomatik doldurur.',
+  };
+  String get chooseIncomeType => switch (locale) {
+    AppLocale.en => 'Choose an income type.',
+    AppLocale.tr => 'Bir gelir tipi secin.',
+  };
+  String get chooseIncomeTypeLabel => switch (locale) {
+    AppLocale.en => 'Choose income type',
+    AppLocale.tr => 'Gelir tipi sec',
+  };
+  String get incomeTypeSheetTitle => incomeType.toUpperCase();
+  String get otherIncomePaymentHelper => switch (locale) {
+    AppLocale.en => 'Choose how this other income was paid.',
+    AppLocale.tr => 'Bu diger gelirin nasil odendigini secin.',
+  };
+  String get cashSaleType => switch (locale) {
+    AppLocale.en => 'Cash Sale',
+    AppLocale.tr => 'Nakit satis',
+  };
+  String get cardSaleType => switch (locale) {
+    AppLocale.en => 'Card Sale',
+    AppLocale.tr => 'Kart satis',
+  };
+  String get uberSettlementType => switch (locale) {
+    AppLocale.en => 'Uber Settlement',
+    AppLocale.tr => 'Uber mutabakati',
+  };
+  String get justEatSettlementType => switch (locale) {
+    AppLocale.en => 'Just Eat Settlement',
+    AppLocale.tr => 'Just Eat mutabakati',
+  };
+  String get otherIncomeType => switch (locale) {
+    AppLocale.en => 'Other',
+    AppLocale.tr => 'Diger',
+  };
   String paymentContinueMessage(String date) => switch (locale) {
     AppLocale.en => 'This logs as an expense and sets next due to $date.',
     AppLocale.tr =>
@@ -934,6 +1111,10 @@ class AppLocalizations {
   String get saved => switch (locale) {
     AppLocale.en => 'Saved ✓',
     AppLocale.tr => 'Kaydedildi ✓',
+  };
+  String get deleted => switch (locale) {
+    AppLocale.en => 'Deleted ✓',
+    AppLocale.tr => 'Silindi ✓',
   };
   String get retrySave => switch (locale) {
     AppLocale.en => 'Retry save',

@@ -134,26 +134,26 @@ void main() {
       await tester.tap(find.byKey(const ValueKey<String>('shell-fab-visible')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Gelir ekle'), findsOneWidget);
+      expect(find.text('Add income'), findsOneWidget);
 
-      await tester.tap(find.text('Gelir ekle'));
+      await tester.tap(find.text('Add income'));
       await tester.pumpAndSettle();
 
       expect(find.text('ADD NEW'), findsNothing);
-      expect(find.text('Geliri kaydet'), findsOneWidget);
+      expect(find.text('Save income'), findsOneWidget);
 
       await tester.showKeyboard(find.byType(TextField).first);
       await tester.pumpAndSettle();
       tester.testTextInput.hide();
       await tester.pumpAndSettle();
 
-      expect(find.text('Geliri kaydet'), findsOneWidget);
+      expect(find.text('Save income'), findsOneWidget);
 
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
 
       expect(find.text('NET PROFIT'), findsOneWidget);
-      expect(find.text('Geliri kaydet'), findsNothing);
+      expect(find.text('Save income'), findsNothing);
     },
   );
 

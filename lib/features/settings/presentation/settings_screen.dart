@@ -245,6 +245,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: () => context.push('/settings/categories'),
               ),
               HiFiSettingsGroupRowData(
+                label: strings.suppliers,
+                onTap: () => context.push('/settings/suppliers'),
+              ),
+              HiFiSettingsGroupRowData(
                 label: strings.recurringExpenses,
                 value: '5 ${strings.active.toLowerCase()}',
                 onTap: () => context.push('/settings/recurring'),

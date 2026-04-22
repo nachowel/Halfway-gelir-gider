@@ -6,6 +6,8 @@ import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/features/income_detail/domain/income_detail_models.dart';
 import 'package:gider/features/income_detail/presentation/income_detail_screen.dart';
 
+import '../../support/localization_test_harness.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(AppTheme.configure);
@@ -224,7 +226,7 @@ void main() {
       overrides: <Override>[
         incomeDetailProvider.overrideWith((ref, query) async => viewModel),
       ],
-      child: MaterialApp(
+      child: buildLocalizedTestApp(
         theme: AppTheme.light(),
         home: const IncomeDetailScreen(),
       ),

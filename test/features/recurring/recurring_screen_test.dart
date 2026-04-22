@@ -5,6 +5,7 @@ import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/features/recurring/presentation/recurring_screen.dart';
+import 'package:gider/l10n/app_localizations.dart';
 import 'package:gider/shared/hi_fi/hi_fi_icon_tile.dart';
 import 'package:gider/shared/hi_fi/hi_fi_recurring_row.dart';
 
@@ -64,6 +65,8 @@ void main() {
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
+        localizationsDelegates: AppLocalizations.globalDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const Scaffold(body: RecurringScreen()),
       ),
     );
@@ -114,7 +117,7 @@ void main() {
     await tester.pumpWidget(buildTestApp(items: [], simulateError: true));
     await tester.pumpAndSettle();
 
-    expect(find.text("Couldn't load recurring expenses"), findsOneWidget);
+    expect(find.text("Couldn’t load recurring expenses"), findsOneWidget);
     expect(find.byType(HiFiRecurringRow), findsNothing);
   });
 

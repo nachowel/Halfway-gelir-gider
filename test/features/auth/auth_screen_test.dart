@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gider/app/providers/app_providers.dart';
-import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_repository.dart';
 import 'package:gider/features/auth/presentation/auth_screen.dart';
 import 'package:gider/shared/widgets/app_button.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../support/localization_test_harness.dart';
 
 class _MockGiderRepository extends Mock implements GiderRepository {}
 
@@ -16,14 +17,12 @@ void main() {
   const String networkErrorMessage =
       'No internet connection. Please try again.';
 
-  setUpAll(AppTheme.configure);
-
   Widget buildApp(GiderRepository repository) {
     return ProviderScope(
       overrides: <Override>[
         giderRepositoryProvider.overrideWithValue(repository),
       ],
-      child: MaterialApp(theme: AppTheme.light(), home: const AuthScreen()),
+      child: buildLocalizedTestApp(home: const AuthScreen()),
     );
   }
 

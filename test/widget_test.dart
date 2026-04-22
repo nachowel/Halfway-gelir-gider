@@ -3,19 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:gider/app/providers/app_providers.dart';
-import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/data/app_repository.dart';
 import 'package:gider/features/entry/presentation/entry_screen.dart';
 import 'package:gider/shared/hi_fi/hi_fi_icon_tile.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'support/localization_test_harness.dart';
+
 class _MockGiderRepository extends Mock implements GiderRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-
-  setUpAll(AppTheme.configure);
 
   Widget buildTestApp(Widget child) {
     return ProviderScope(
@@ -52,7 +51,7 @@ void main() {
           ],
         ),
       ],
-      child: MaterialApp(theme: AppTheme.light(), home: Scaffold(body: child)),
+      child: buildLocalizedScaffoldTestApp(child: child),
     );
   }
 
@@ -72,7 +71,7 @@ void main() {
     expect(find.text('Vendor'), findsOneWidget);
     expect(find.text('Occurred on'), findsOneWidget);
     expect(find.text('Attachment'), findsOneWidget);
-    expect(find.text('Gideri kaydet'), findsOneWidget);
+    expect(find.text('Save expense'), findsOneWidget);
   });
 
   testWidgets('income entry renders variant C structure', (
@@ -86,11 +85,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Source platform'), findsOneWidget);
-    expect(find.text('Payment method'), findsOneWidget);
-    expect(find.text('Category'), findsOneWidget);
+    expect(find.text('Income type'), findsOneWidget);
+    expect(find.text('Choose income type'), findsOneWidget);
     expect(find.text('Occurred on'), findsOneWidget);
     expect(find.text('Attachment'), findsOneWidget);
-    expect(find.text('Geliri kaydet'), findsOneWidget);
+    expect(find.text('Save income'), findsOneWidget);
   });
 }

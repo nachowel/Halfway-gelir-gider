@@ -125,6 +125,8 @@ class TransactionData {
     this.sourcePlatform,
     this.note,
     this.vendor,
+    this.supplierId,
+    this.supplierName,
     this.attachmentPath,
     this.recurringExpenseId,
   });
@@ -140,8 +142,42 @@ class TransactionData {
   final SourcePlatformType? sourcePlatform;
   final String? note;
   final String? vendor;
+  final String? supplierId;
+  final String? supplierName;
   final String? attachmentPath;
   final String? recurringExpenseId;
+}
+
+class SupplierData {
+  const SupplierData({
+    required this.id,
+    required this.expenseCategoryId,
+    required this.expenseCategoryName,
+    required this.name,
+    required this.sortOrder,
+    required this.isArchived,
+    this.notes,
+  });
+
+  final String id;
+  final String expenseCategoryId;
+  final String expenseCategoryName;
+  final String name;
+  final int sortOrder;
+  final bool isArchived;
+  final String? notes;
+}
+
+class SupplierDraft {
+  const SupplierDraft({
+    required this.expenseCategoryId,
+    required this.name,
+    this.notes,
+  });
+
+  final String expenseCategoryId;
+  final String name;
+  final String? notes;
 }
 
 class RecurringExpenseData {
@@ -327,6 +363,7 @@ class EntryDraft {
     this.sourcePlatform,
     this.note,
     this.vendor,
+    this.supplierId,
     this.attachmentPath,
   });
 
@@ -338,6 +375,7 @@ class EntryDraft {
   final SourcePlatformType? sourcePlatform;
   final String? note;
   final String? vendor;
+  final String? supplierId;
   final String? attachmentPath;
 }
 

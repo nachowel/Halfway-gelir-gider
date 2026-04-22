@@ -55,36 +55,61 @@ class _NetProfitDetailScreenState extends ConsumerState<NetProfitDetailScreen> {
         child: HiFiScreenBackground(
           tone: HiFiScreenTone.warm,
           child: SafeArea(
-            bottom: false,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-                AppSpacing.screenSide,
-                AppSpacing.xxl,
-              ),
+            child: Column(
               children: <Widget>[
-                _NetProfitHeader(
-                  onBack: () async {
-                    final bool didPop = await Navigator.of(context).maybePop();
-                    if (!didPop && context.mounted) {
-                      context.go('/summary');
-                    }
-                  },
-                  onInfoTap: () => _showInfoSheet(context),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenSide,
+                      AppSpacing.sm,
+                      AppSpacing.screenSide,
+                      AppSpacing.lg,
+                    ),
+                    children: <Widget>[
+                      _NetProfitHeader(
+                        onBack: () async {
+                          final bool didPop = await Navigator.of(
+                            context,
+                          ).maybePop();
+                          if (!didPop && context.mounted) {
+                            context.go('/summary');
+                          }
+                        },
+                        onInfoTap: () => _showInfoSheet(context),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      _PeriodFilterBar(
+                        selectedPreset: _query.preset,
+                        rangeLabel: previewRange.label,
+                        onPresetSelected: _handlePresetSelected,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      viewModelAsync.when(
+                        loading: () => const _LoadingState(),
+                        error: (_, __) => const _ErrorState(),
+                        data: (NetProfitDetailViewModel viewModel) {
+                          return _NetProfitDetailContent(viewModel: viewModel);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                _PeriodFilterBar(
-                  selectedPreset: _query.preset,
-                  rangeLabel: previewRange.label,
-                  onPresetSelected: _handlePresetSelected,
-                ),
-                const SizedBox(height: AppSpacing.lg),
                 viewModelAsync.when(
-                  loading: () => const _LoadingState(),
-                  error: (_, __) => const _ErrorState(),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
                   data: (NetProfitDetailViewModel viewModel) {
-                    return _NetProfitDetailContent(viewModel: viewModel);
+                    return SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenSide,
+                          0,
+                          AppSpacing.screenSide,
+                          AppSpacing.sm,
+                        ),
+                        child: _InsightsCard(viewModel: viewModel),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -217,8 +242,6 @@ class _NetProfitDetailContent extends StatelessWidget {
         _DailyProfitChartCard(viewModel: viewModel),
         const SizedBox(height: AppSpacing.lg),
         _BreakdownSection(viewModel: viewModel),
-        const SizedBox(height: AppSpacing.lg),
-        _InsightsCard(viewModel: viewModel),
       ],
     );
   }
