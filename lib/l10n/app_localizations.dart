@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 
+import '../core/app_lock/app_lock_models.dart';
 import '../data/app_models.dart';
 import '../features/expense_detail/domain/expense_detail_models.dart';
 import '../features/income_detail/domain/income_detail_models.dart';
@@ -529,10 +530,8 @@ class AppLocalizations {
     AppLocale.tr => 'Tedarikçi adı zorunludur',
   };
   String get supplierDuplicateInCategory => switch (locale) {
-    AppLocale.en =>
-      'A supplier with this name already exists in this category',
-    AppLocale.tr =>
-      'Bu kategori içinde aynı isimde bir tedarikçi zaten var',
+    AppLocale.en => 'A supplier with this name already exists in this category',
+    AppLocale.tr => 'Bu kategori içinde aynı isimde bir tedarikçi zaten var',
   };
   String get archiveSupplier => switch (locale) {
     AppLocale.en => 'Archive supplier',
@@ -545,6 +544,83 @@ class AppLocalizations {
   String get security => switch (locale) {
     AppLocale.en => 'Security',
     AppLocale.tr => 'Guvenlik',
+  };
+  String get appLock => switch (locale) {
+    AppLocale.en => 'App Lock',
+    AppLocale.tr => 'Uygulama kilidi',
+  };
+  String get appLockTimeout => switch (locale) {
+    AppLocale.en => 'Lock timing',
+    AppLocale.tr => 'Kilit zamani',
+  };
+  String get appLockEnableReason => switch (locale) {
+    AppLocale.en => 'To turn on App Lock, verify with your device.',
+    AppLocale.tr => 'Uygulama kilidini acmak icin cihazinizla dogrulayin.',
+  };
+  String get appLockUnlockReason => switch (locale) {
+    AppLocale.en => 'Unlock GIDER to continue.',
+    AppLocale.tr => 'Devam etmek icin GIDER kilidini acin.',
+  };
+  String get appLockUnavailableEnable => switch (locale) {
+    AppLocale.en =>
+      'App Lock needs Face ID, fingerprint, or your device screen lock. Set one up in device settings, then try again.',
+    AppLocale.tr =>
+      'Uygulama kilidi yuz tanima, parmak izi veya cihaz ekran kilidi gerektirir. Cihaz ayarlarinda kurup tekrar deneyin.',
+  };
+  String get appLockCanceled => switch (locale) {
+    AppLocale.en => 'App Lock was not turned on.',
+    AppLocale.tr => 'Uygulama kilidi acilmadi.',
+  };
+  String get appLockTurnedOn => switch (locale) {
+    AppLocale.en => 'App Lock is on.',
+    AppLocale.tr => 'Uygulama kilidi acik.',
+  };
+  String appLockTimeoutLabel(String value) => value;
+  String get appLockTitle => switch (locale) {
+    AppLocale.en => 'Unlock GIDER',
+    AppLocale.tr => 'GIDER kilidini ac',
+  };
+  String get appLockBody => switch (locale) {
+    AppLocale.en =>
+      'Your session is still active. Verify with your device to continue.',
+    AppLocale.tr =>
+      'Oturumunuz hala aktif. Devam etmek icin cihazinizla dogrulayin.',
+  };
+  String get appLockUnlockAction => switch (locale) {
+    AppLocale.en => 'Unlock',
+    AppLocale.tr => 'Kilidi ac',
+  };
+  String get appLockUnavailableTitle => switch (locale) {
+    AppLocale.en => 'Unlock unavailable',
+    AppLocale.tr => 'Kilit acilamiyor',
+  };
+  String get appLockUnavailableBody => switch (locale) {
+    AppLocale.en =>
+      'This device cannot verify you right now. Try again or sign out.',
+    AppLocale.tr =>
+      'Bu cihaz su anda sizi dogrulayamiyor. Tekrar deneyin veya cikis yapin.',
+  };
+  String get checkingAppLock => switch (locale) {
+    AppLocale.en => 'Checking App Lock...',
+    AppLocale.tr => 'Uygulama kilidi kontrol ediliyor...',
+  };
+  String appLockTimeoutOptionLabel(AppLockTimeout timeout) => switch (timeout) {
+    AppLockTimeout.immediately => switch (locale) {
+      AppLocale.en => 'Immediately',
+      AppLocale.tr => 'Hemen',
+    },
+    AppLockTimeout.oneMinute => switch (locale) {
+      AppLocale.en => '1 min',
+      AppLocale.tr => '1 dk',
+    },
+    AppLockTimeout.fiveMinutes => switch (locale) {
+      AppLocale.en => '5 min',
+      AppLocale.tr => '5 dk',
+    },
+    AppLockTimeout.fifteenMinutes => switch (locale) {
+      AppLocale.en => '15 min',
+      AppLocale.tr => '15 dk',
+    },
   };
   String get signOut => switch (locale) {
     AppLocale.en => 'Sign out',

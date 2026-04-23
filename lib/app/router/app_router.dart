@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/auth_screen.dart';
+import '../../features/app_lock/presentation/protected_content_gate.dart';
 import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/entry/presentation/entry_screen.dart';
@@ -105,7 +106,9 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
               state.uri.queryParameters['transactionId'];
           return NoTransitionPage<void>(
             key: state.pageKey,
-            child: EntryScreen(kind: entryKind, transactionId: transactionId),
+            child: ProtectedContentGate(
+              child: EntryScreen(kind: entryKind, transactionId: transactionId),
+            ),
           );
         },
       ),
@@ -115,7 +118,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (BuildContext context, GoRouterState state) {
           return CustomTransitionPage<void>(
             key: state.pageKey,
-            child: const IncomeDetailScreen(),
+            child: const ProtectedContentGate(child: IncomeDetailScreen()),
             transitionDuration: const Duration(milliseconds: 240),
             reverseTransitionDuration: const Duration(milliseconds: 220),
             transitionsBuilder:
@@ -153,7 +156,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (BuildContext context, GoRouterState state) {
           return CustomTransitionPage<void>(
             key: state.pageKey,
-            child: const ExpenseDetailScreen(),
+            child: const ProtectedContentGate(child: ExpenseDetailScreen()),
             transitionDuration: const Duration(milliseconds: 240),
             reverseTransitionDuration: const Duration(milliseconds: 220),
             transitionsBuilder:
@@ -191,7 +194,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (BuildContext context, GoRouterState state) {
           return CustomTransitionPage<void>(
             key: state.pageKey,
-            child: const NetProfitDetailScreen(),
+            child: const ProtectedContentGate(child: NetProfitDetailScreen()),
             transitionDuration: const Duration(milliseconds: 240),
             reverseTransitionDuration: const Duration(milliseconds: 220),
             transitionsBuilder:
@@ -225,7 +228,12 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         builder: (BuildContext context, GoRouterState state, Widget child) {
-          return AppShell(currentLocation: state.uri.toString(), child: child);
+          return ProtectedContentGate(
+            child: AppShell(
+              currentLocation: state.uri.toString(),
+              child: child,
+            ),
+          );
         },
         routes: <RouteBase>[
           GoRoute(
@@ -269,9 +277,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'suppliers',
                 pageBuilder: (BuildContext context, GoRouterState state) {
-                  return const NoTransitionPage<void>(
-                    child: SuppliersScreen(),
-                  );
+                  return const NoTransitionPage<void>(child: SuppliersScreen());
                 },
               ),
             ],

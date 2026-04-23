@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:gider/app/app.dart';
 import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/router/route_access.dart';
+import 'package:gider/core/app_lock/app_lock_settings_store.dart';
 import 'package:gider/data/app_models.dart';
 import 'package:gider/shared/hi_fi/hi_fi_icon_tile.dart';
 
@@ -78,6 +79,9 @@ void main() {
         ),
         businessSettingsBootstrapStatusProvider.overrideWithValue(
           BusinessSettingsBootstrapStatus.complete,
+        ),
+        appLockSettingsStoreProvider.overrideWithValue(
+          InMemoryAppLockSettingsStore(),
         ),
         dashboardSnapshotProvider.overrideWith((ref) async => dashboard),
         businessSettingsProvider.overrideWith((ref) async => settings),

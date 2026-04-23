@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/app_lock/app_lock_models.dart';
 import '../l10n/app_localizations.dart';
+import '../features/app_lock/presentation/protected_content_gate.dart';
 import 'providers/app_providers.dart';
 import 'router/app_router.dart';
 import 'router/route_access.dart';
@@ -19,7 +21,7 @@ class GiderApp extends ConsumerWidget {
       authRoutingStatusProvider,
     );
 
-    if (authRoutingStatus == AppAuthRoutingStatus.loading) {
+    if (!isAuthRoutingReady(authRoutingStatus)) {
       return _buildBootstrapApp(
         locale: locale.locale,
         strings: strings,
@@ -51,14 +53,18 @@ class GiderApp extends ConsumerWidget {
       }
     }
 
-    return MaterialApp.router(
-      title: strings.appTitle,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      locale: locale.locale,
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: AppLocalizations.globalDelegates,
-      routerConfig: ref.watch(appRouterProvider),
+    return AppLockLifecycleObserver(
+      child: SecureWindowBinding(
+        child: MaterialApp.router(
+          title: strings.appTitle,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          locale: locale.locale,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.globalDelegates,
+          routerConfig: ref.watch(appRouterProvider),
+        ),
+      ),
     );
   }
 
@@ -81,6 +87,49 @@ class GiderApp extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+class SecureWindowBinding extends ConsumerStatefulWidget {
+  const SecureWindowBinding({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  ConsumerState<SecureWindowBinding> createState() =>
+      _SecureWindowBindingState();
+}
+
+class _SecureWindowBindingState extends ConsumerState<SecureWindowBinding> {
+  bool? _appliedSecure;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
+  }
+
+  void _sync() {
+    if (!mounted) {
+      return;
+    }
+    final AppLockState state = ref.read(appLockControllerProvider);
+    if (!state.isReady) {
+      return;
+    }
+    final bool desired = state.config.enabled;
+    if (_appliedSecure == desired) {
+      return;
+    }
+    _appliedSecure = desired;
+    ref.read(secureWindowControllerProvider).setSecure(desired);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<AppLockState>(appLockControllerProvider, (_, __) => _sync());
+    _sync();
+    return widget.child;
   }
 }
 

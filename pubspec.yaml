@@ -1,4 +1,4 @@
-name: halfway_cafe
+name: gider
 description: "Private Android-first income and expense tracker for a UK business."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -50,6 +50,8 @@ dependencies:
   intl: ^0.20.2
   google_fonts: ^6.2.1
   shared_preferences: ^2.5.3
+  local_auth: ^2.3.0
+  local_auth_platform_interface: ^1.1.0
 
 dev_dependencies:
   flutter_test:

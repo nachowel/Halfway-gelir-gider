@@ -1,4 +1,4 @@
-enum AppAuthRoutingStatus { loading, authenticated, unauthenticated }
+enum AppAuthRoutingStatus { unknown, loading, authenticated, unauthenticated }
 
 enum BusinessSettingsBootstrapStatus { loading, required, complete, error }
 
@@ -6,6 +6,32 @@ const String kDefaultProtectedRoute = '/summary';
 const String kLoginRoute = '/auth/login';
 const String kSignupRoute = '/auth/signup';
 const String kOnboardingRoute = '/onboarding';
+
+const Set<String> kProtectedRoutePaths = <String>{
+  kDefaultProtectedRoute,
+  '/summary/income',
+  '/summary/expenses',
+  '/summary/net-profit',
+  '/transactions',
+  '/reports',
+  '/settings',
+  '/settings/categories',
+  '/settings/recurring',
+  '/settings/suppliers',
+  '/entry/income',
+  '/entry/expense',
+};
+
+const Set<String> kPostAuthRestorableRoutePaths = <String>{
+  kDefaultProtectedRoute,
+  '/summary/income',
+  '/summary/expenses',
+  '/summary/net-profit',
+  '/transactions',
+  '/reports',
+  '/entry/income',
+  '/entry/expense',
+};
 
 bool isAuthRoutePath(String path) {
   return path == kLoginRoute || path == kSignupRoute;
@@ -16,21 +42,19 @@ bool isOnboardingRoutePath(String path) {
 }
 
 bool isKnownProtectedRoutePath(String path) {
-  switch (path) {
-    case kDefaultProtectedRoute:
-    case '/transactions':
-    case '/reports':
-    case '/settings':
-    case '/settings/categories':
-    case '/settings/recurring':
-    case '/entry/income':
-    case '/entry/expense':
-      return true;
-  }
-  return false;
+  return kProtectedRoutePaths.contains(path);
 }
 
-String normalizeProtectedFrom(String? rawFrom) {
+bool isPostAuthRestorableRoutePath(String path) {
+  return kPostAuthRestorableRoutePaths.contains(path);
+}
+
+bool isAuthRoutingReady(AppAuthRoutingStatus status) {
+  return status == AppAuthRoutingStatus.authenticated ||
+      status == AppAuthRoutingStatus.unauthenticated;
+}
+
+String normalizePostAuthTarget(String? rawFrom) {
   if (rawFrom == null) {
     return kDefaultProtectedRoute;
   }
@@ -48,7 +72,7 @@ String normalizeProtectedFrom(String? rawFrom) {
   final String path = uri.path;
   if (!path.startsWith('/') ||
       isAuthRoutePath(path) ||
-      !isKnownProtectedRoutePath(path)) {
+      !isPostAuthRestorableRoutePath(path)) {
     return kDefaultProtectedRoute;
   }
 
@@ -61,7 +85,7 @@ String normalizeProtectedFrom(String? rawFrom) {
 String buildAuthLocation(String path, {String? from}) {
   return Uri(
     path: path,
-    queryParameters: <String, String>{'from': normalizeProtectedFrom(from)},
+    queryParameters: <String, String>{'from': normalizePostAuthTarget(from)},
   ).toString();
 }
 
@@ -74,6 +98,7 @@ String? resolveAppRedirect({
   final bool onOnboardingRoute = isOnboardingRoutePath(currentUri.path);
 
   switch (authStatus) {
+    case AppAuthRoutingStatus.unknown:
     case AppAuthRoutingStatus.loading:
       return null;
     case AppAuthRoutingStatus.unauthenticated:
@@ -100,6 +125,6 @@ String? resolveAppRedirect({
       if (!onAuthRoute) {
         return null;
       }
-      return normalizeProtectedFrom(currentUri.queryParameters['from']);
+      return normalizePostAuthTarget(currentUri.queryParameters['from']);
   }
 }

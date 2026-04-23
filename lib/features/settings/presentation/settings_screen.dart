@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/providers/app_providers.dart';
 import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../core/app_lock/app_lock_models.dart';
 import '../../../data/app_models.dart';
 import '../../../l10n/app_locale.dart';
 import '../../../l10n/app_localizations.dart';
@@ -145,6 +146,89 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _toggleAppLock(bool value) async {
+    final AppLocalizations strings = context.strings;
+    if (!value) {
+      await ref.read(appLockControllerProvider.notifier).disable();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(strings.appLockEnableReason),
+      ),
+    );
+
+    final AppLockEnableResult result = await ref
+        .read(appLockControllerProvider.notifier)
+        .enable(localizedReason: strings.appLockEnableReason);
+
+    if (!mounted) {
+      return;
+    }
+
+    final String message = switch (result.status) {
+      AppLockEnableStatus.enabled => strings.appLockTurnedOn,
+      AppLockEnableStatus.unavailable => strings.appLockUnavailableEnable,
+      AppLockEnableStatus.canceled => strings.appLockCanceled,
+      AppLockEnableStatus.failed =>
+        result.message ?? strings.genericErrorTryAgain,
+    };
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: result.enabled ? AppColors.income : AppColors.expense,
+        content: Text(message),
+      ),
+    );
+  }
+
+  Future<void> _pickAppLockTimeout(AppLockTimeout currentTimeout) async {
+    await showAppModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        final AppLocalizations strings = sheetContext.strings;
+        return HiFiBottomSheet(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(strings.security.toUpperCase(), style: AppTypography.eye),
+              const SizedBox(height: 4),
+              Text(strings.appLockTimeout, style: AppTypography.h2),
+              const SizedBox(height: AppSpacing.md),
+              for (final AppLockTimeout timeout in AppLockTimeout.values)
+                HiFiSettingsGroup(
+                  title: '',
+                  rows: <HiFiSettingsGroupRowData>[
+                    HiFiSettingsGroupRowData(
+                      label: strings.appLockTimeoutOptionLabel(timeout),
+                      trailing: timeout == currentTimeout
+                          ? const HiFiReadonlyPillValue(label: '✓')
+                          : null,
+                      onTap: () async {
+                        await ref
+                            .read(appLockControllerProvider.notifier)
+                            .setTimeout(timeout);
+                        if (!sheetContext.mounted) {
+                          return;
+                        }
+                        Navigator.of(sheetContext).pop();
+                      },
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _signOut() async {
     setState(() => _signingOut = true);
     try {
@@ -169,6 +253,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final AppLocalizations strings = context.strings;
     final AppLocale currentLocale = ref.watch(appLocaleProvider);
+    final bool appLockSupported = ref.watch(appLockSupportedPlatformProvider);
+    final AppLockState appLockState = ref.watch(appLockControllerProvider);
     final AsyncValue<BusinessSettingsData> settingsState = ref.watch(
       businessSettingsProvider,
     );
@@ -259,6 +345,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           HiFiSettingsGroup(
             title: strings.security,
             rows: <HiFiSettingsGroupRowData>[
+              if (appLockSupported)
+                HiFiSettingsGroupRowData(
+                  label: strings.appLock,
+                  trailing: Switch(
+                    key: const ValueKey<String>('app-lock-toggle'),
+                    value: appLockState.isReady && appLockState.config.enabled,
+                    onChanged:
+                        !appLockState.isReady || appLockState.isEnableInProgress
+                        ? null
+                        : _toggleAppLock,
+                  ),
+                ),
+              if (appLockSupported && appLockState.config.enabled)
+                HiFiSettingsGroupRowData(
+                  label: strings.appLockTimeout,
+                  trailing: HiFiReadonlyPillValue(
+                    label: strings.appLockTimeoutOptionLabel(
+                      appLockState.config.timeout,
+                    ),
+                  ),
+                  onTap: () => _pickAppLockTimeout(appLockState.config.timeout),
+                ),
               HiFiSettingsGroupRowData(
                 label: strings.signOut,
                 destructive: true,

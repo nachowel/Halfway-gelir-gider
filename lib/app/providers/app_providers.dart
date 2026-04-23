@@ -4,6 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../router/route_access.dart';
+import '../../core/app_lock/app_lock_controller.dart';
+import '../../core/app_lock/app_lock_models.dart';
+import '../../core/app_lock/app_lock_settings_store.dart';
+import '../../core/app_lock/local_auth_unlock_service.dart';
+import '../../core/app_lock/secure_window_controller.dart';
 import '../../core/auth/session_controller.dart';
 import '../../data/app_models.dart';
 import '../../data/app_repository.dart';
@@ -104,6 +109,60 @@ final giderRepositoryProvider = Provider<GiderRepository>((ref) {
   );
 });
 
+final appLockSupportedPlatformProvider = Provider<bool>((ref) => !kIsWeb);
+
+final appLockSettingsStoreProvider = Provider<AppLockSettingsStore>(
+  (ref) => const SharedPreferencesAppLockSettingsStore(),
+);
+
+final appUnlockServiceProvider = Provider<AppUnlockService>((ref) {
+  if (!ref.watch(appLockSupportedPlatformProvider)) {
+    return const UnsupportedAppUnlockService();
+  }
+  return LocalAuthUnlockService();
+});
+
+final appLockControllerProvider =
+    StateNotifierProvider<AppLockController, AppLockState>((ref) {
+      if (!ref.watch(appLockSupportedPlatformProvider)) {
+        return AppLockController.preloaded(
+          initialState: const AppLockState(
+            isReady: true,
+            config: AppLockConfig.disabled(),
+            status: AppLockStatus.disabled,
+          ),
+          settingsStore: InMemoryAppLockSettingsStore(),
+          unlockService: const UnsupportedAppUnlockService(),
+        );
+      }
+      return AppLockController(
+        settingsStore: ref.watch(appLockSettingsStoreProvider),
+        unlockService: ref.watch(appUnlockServiceProvider),
+      );
+    });
+
+final secureWindowControllerProvider = Provider<SecureWindowController>((ref) {
+  if (!ref.watch(appLockSupportedPlatformProvider)) {
+    return const NoopSecureWindowController();
+  }
+  return defaultSecureWindowController();
+});
+
+final appLockAllowsProtectedAccessProvider = Provider<bool>((ref) {
+  final AppAuthRoutingStatus authStatus = ref.watch(authRoutingStatusProvider);
+  if (authStatus != AppAuthRoutingStatus.authenticated) {
+    return true;
+  }
+  return ref.watch(appLockControllerProvider).allowsProtectedAccess;
+});
+
+final protectedGiderRepositoryProvider = Provider<GiderRepository>((ref) {
+  if (!ref.watch(appLockAllowsProtectedAccessProvider)) {
+    throw const ProtectedAccessLockedException();
+  }
+  return ref.watch(giderRepositoryProvider);
+});
+
 final sessionControllerProvider = Provider<SessionController>(
   (ref) => SessionController(ref.watch(supabaseClientProvider)),
 );
@@ -118,7 +177,7 @@ final authRoutingStatusProvider = Provider<AppAuthRoutingStatus>((ref) {
     data: (AppAuthUser? user) => user == null
         ? AppAuthRoutingStatus.unauthenticated
         : AppAuthRoutingStatus.authenticated,
-    loading: () => AppAuthRoutingStatus.loading,
+    loading: () => AppAuthRoutingStatus.unknown,
     error: (_, __) => AppAuthRoutingStatus.unauthenticated,
   );
 });
@@ -156,7 +215,9 @@ final dashboardSnapshotProvider = FutureProvider<DashboardSnapshot>((
 ) async {
   ref.watch(refreshKeyProvider);
   final AppLocalizations strings = ref.watch(appLocalizationsProvider);
-  return ref.watch(giderRepositoryProvider).fetchDashboardSnapshot(strings);
+  return ref
+      .watch(protectedGiderRepositoryProvider)
+      .fetchDashboardSnapshot(strings);
 });
 
 final reportsServiceProvider = Provider<MonthlyReportsService>(
@@ -174,7 +235,7 @@ final reportsDatasetProvider = FutureProvider<MonthlyReportsDataset>((
   ref.watch(refreshKeyProvider);
   final DateTime selectedMonth = ref.watch(selectedReportsMonthProvider);
   return ref
-      .watch(giderRepositoryProvider)
+      .watch(protectedGiderRepositoryProvider)
       .fetchMonthlyReportsDataset(selectedMonth, trendMonthCount: 6);
 });
 
@@ -197,7 +258,7 @@ final incomeDetailProvider =
       ref.watch(refreshKeyProvider);
       final AppLocalizations strings = ref.watch(appLocalizationsProvider);
       return ref
-          .watch(giderRepositoryProvider)
+          .watch(protectedGiderRepositoryProvider)
           .fetchIncomeDetail(query, strings);
     });
 
@@ -209,7 +270,7 @@ final expenseDetailProvider =
       ref.watch(refreshKeyProvider);
       final AppLocalizations strings = ref.watch(appLocalizationsProvider);
       return ref
-          .watch(giderRepositoryProvider)
+          .watch(protectedGiderRepositoryProvider)
           .fetchExpenseDetail(query, strings);
     });
 
@@ -221,7 +282,7 @@ final netProfitDetailProvider =
       ref.watch(refreshKeyProvider);
       final AppLocalizations strings = ref.watch(appLocalizationsProvider);
       return ref
-          .watch(giderRepositoryProvider)
+          .watch(protectedGiderRepositoryProvider)
           .fetchNetProfitDetail(query, strings);
     });
 
@@ -230,7 +291,9 @@ final recurringItemsProvider = FutureProvider<List<RecurringUiItem>>((
 ) async {
   ref.watch(refreshKeyProvider);
   final AppLocalizations strings = ref.watch(appLocalizationsProvider);
-  return ref.watch(giderRepositoryProvider).fetchRecurringUiItems(strings);
+  return ref
+      .watch(protectedGiderRepositoryProvider)
+      .fetchRecurringUiItems(strings);
 });
 
 final recurringSummaryProvider = FutureProvider<RecurringSummarySnapshot>((
@@ -238,7 +301,7 @@ final recurringSummaryProvider = FutureProvider<RecurringSummarySnapshot>((
 ) async {
   ref.watch(refreshKeyProvider);
   return ref
-      .watch(giderRepositoryProvider)
+      .watch(protectedGiderRepositoryProvider)
       .fetchRecurringSummary(DateTime.now());
 });
 
@@ -247,7 +310,7 @@ final incomeCategoriesProvider = FutureProvider<List<CategoryData>>((
 ) async {
   ref.watch(refreshKeyProvider);
   return ref
-      .watch(giderRepositoryProvider)
+      .watch(protectedGiderRepositoryProvider)
       .fetchCategories(CategoryType.income);
 });
 
@@ -256,7 +319,7 @@ final expenseCategoriesProvider = FutureProvider<List<CategoryData>>((
 ) async {
   ref.watch(refreshKeyProvider);
   return ref
-      .watch(giderRepositoryProvider)
+      .watch(protectedGiderRepositoryProvider)
       .fetchCategories(CategoryType.expense);
 });
 
@@ -282,17 +345,17 @@ final suppliersProvider =
       query,
     ) async {
       ref.watch(refreshKeyProvider);
-      return ref.watch(giderRepositoryProvider).fetchSuppliers(
+      return ref
+          .watch(protectedGiderRepositoryProvider)
+          .fetchSuppliers(
             expenseCategoryId: query.expenseCategoryId,
             includeArchived: query.includeArchived,
           );
     });
 
-final activeSuppliersProvider = FutureProvider<List<SupplierData>>((
-  ref,
-) async {
+final activeSuppliersProvider = FutureProvider<List<SupplierData>>((ref) async {
   ref.watch(refreshKeyProvider);
-  return ref.watch(giderRepositoryProvider).fetchSuppliers();
+  return ref.watch(protectedGiderRepositoryProvider).fetchSuppliers();
 });
 
 enum TransactionsFilter { thisWeek, all, expense, income, card, cash }
@@ -303,7 +366,9 @@ final transactionsProvider =
       filter,
     ) async {
       ref.watch(refreshKeyProvider);
-      final GiderRepository repository = ref.watch(giderRepositoryProvider);
+      final GiderRepository repository = ref.watch(
+        protectedGiderRepositoryProvider,
+      );
       switch (filter) {
         case TransactionsFilter.thisWeek:
           final DateTime now = DateTime.now();
