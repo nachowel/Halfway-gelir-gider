@@ -18,6 +18,8 @@ import '../../data/sync/conflict_policy.dart';
 import '../../data/sync/sync_engine.dart';
 import '../../data/sync/sync_service.dart';
 import '../../features/expense_detail/domain/expense_detail_models.dart';
+import '../../features/balances/data/balances_repository.dart';
+import '../../features/balances/domain/balance_models.dart';
 import '../../features/income_detail/domain/income_detail_models.dart';
 import '../../features/net_profit_detail/domain/net_profit_detail_models.dart';
 import '../../features/reports/domain/monthly_reports_models.dart';
@@ -162,6 +164,24 @@ final protectedGiderRepositoryProvider = Provider<GiderRepository>((ref) {
   }
   return ref.watch(giderRepositoryProvider);
 });
+
+final balancesRepositoryProvider = Provider<BalancesRepository>((ref) {
+  if (!ref.watch(appLockAllowsProtectedAccessProvider)) {
+    throw const ProtectedAccessLockedException();
+  }
+  return BalancesRepository(ref.watch(supabaseClientProvider));
+});
+
+final balancesSummaryProvider = FutureProvider<BalanceSummaryData>((ref) async {
+  ref.watch(refreshKeyProvider);
+  return ref.watch(balancesRepositoryProvider).fetchSummary();
+});
+
+final balanceAccountProvider =
+    FutureProvider.family<BalanceAccountData?, String>((ref, accountId) async {
+      ref.watch(refreshKeyProvider);
+      return ref.watch(balancesRepositoryProvider).fetchAccount(accountId);
+    });
 
 final sessionControllerProvider = Provider<SessionController>(
   (ref) => SessionController(ref.watch(supabaseClientProvider)),

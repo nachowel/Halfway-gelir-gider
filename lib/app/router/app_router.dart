@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/auth_screen.dart';
+import '../../features/balances/presentation/balances_screen.dart';
 import '../../features/app_lock/presentation/protected_content_gate.dart';
 import '../../features/categories/presentation/categories_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
@@ -279,6 +280,24 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
                 pageBuilder: (BuildContext context, GoRouterState state) {
                   return const NoTransitionPage<void>(child: SuppliersScreen());
                 },
+              ),
+              GoRoute(
+                path: 'balances',
+                pageBuilder: (BuildContext context, GoRouterState state) {
+                  return const NoTransitionPage<void>(child: BalancesScreen());
+                },
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: ':accountId',
+                    pageBuilder: (BuildContext context, GoRouterState state) {
+                      return NoTransitionPage<void>(
+                        child: BalanceAccountDetailScreen(
+                          accountId: state.pathParameters['accountId'] ?? '',
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),

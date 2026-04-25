@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../core/app_lock/app_lock_models.dart';
 import '../data/app_models.dart';
 import '../features/expense_detail/domain/expense_detail_models.dart';
+import '../features/balances/domain/balance_models.dart';
 import '../features/income_detail/domain/income_detail_models.dart';
 import '../features/net_profit_detail/domain/net_profit_detail_models.dart';
 import 'app_locale.dart';
@@ -231,6 +232,272 @@ class AppLocalizations {
     AppLocale.en => 'No activity',
     AppLocale.tr => 'Hareket yok',
   };
+  String get balancesTitle => switch (locale) {
+    AppLocale.en => 'Balances',
+    AppLocale.tr => 'Borç / Alacak',
+  };
+  String get balanceIOwe => switch (locale) {
+    AppLocale.en => 'I owe',
+    AppLocale.tr => 'Borçlarım',
+  };
+  String get balanceOwedToMe => switch (locale) {
+    AppLocale.en => 'Owed to me',
+    AppLocale.tr => 'Alacaklarım',
+  };
+  String get balanceNetPosition => switch (locale) {
+    AppLocale.en => 'Net position',
+    AppLocale.tr => 'Net durum',
+  };
+  String get balancePayables => switch (locale) {
+    AppLocale.en => 'Payables',
+    AppLocale.tr => 'Borçlar',
+  };
+  String get balanceReceivables => switch (locale) {
+    AppLocale.en => 'Receivables',
+    AppLocale.tr => 'Alacaklar',
+  };
+  String get noBalanceAccountsYet => switch (locale) {
+    AppLocale.en => 'No balance accounts yet',
+    AppLocale.tr => 'Henüz borç/alacak hesabı yok',
+  };
+  String get balancesEmptyBody => switch (locale) {
+    AppLocale.en =>
+      'Track money you owe or money owed to you without affecting income, expenses, or reports.',
+    AppLocale.tr =>
+      'Gelir, gider ve raporları etkilemeden borç ve alacaklarını takip et.',
+  };
+  String get addBalanceAccount => switch (locale) {
+    AppLocale.en => 'Add balance account',
+    AppLocale.tr => 'Borç/alacak hesabı ekle',
+  };
+  String get addAccountUpper => switch (locale) {
+    AppLocale.en => 'ADD ACCOUNT',
+    AppLocale.tr => 'HESAP EKLE',
+  };
+  String get newBalanceAccount => switch (locale) {
+    AppLocale.en => 'New balance account',
+    AppLocale.tr => 'Yeni borç/alacak hesabı',
+  };
+  String get editBalanceAccount => switch (locale) {
+    AppLocale.en => 'Edit balance account',
+    AppLocale.tr => 'Borç/alacak hesabını düzenle',
+  };
+  String get balanceDirection => switch (locale) {
+    AppLocale.en => 'Direction',
+    AppLocale.tr => 'Yön',
+  };
+  String get balanceName => switch (locale) {
+    AppLocale.en => 'Name',
+    AppLocale.tr => 'İsim',
+  };
+  String get balanceNameHint => switch (locale) {
+    AppLocale.en => 'Short account name',
+    AppLocale.tr => 'Kısa hesap adı',
+  };
+  String get balanceCounterpartyName => switch (locale) {
+    AppLocale.en => 'Counterparty name',
+    AppLocale.tr => 'Karşı taraf',
+  };
+  String get balanceCounterpartyHint => switch (locale) {
+    AppLocale.en => 'Person or business',
+    AppLocale.tr => 'Kişi veya işletme',
+  };
+  String get balanceType => switch (locale) {
+    AppLocale.en => 'Type',
+    AppLocale.tr => 'Tür',
+  };
+  String get balanceOpeningAmount => switch (locale) {
+    AppLocale.en => 'Opening amount',
+    AppLocale.tr => 'Açılış tutarı',
+  };
+  String get balanceOpenedDate => switch (locale) {
+    AppLocale.en => 'Opened date',
+    AppLocale.tr => 'Açılış tarihi',
+  };
+  String get balanceNotes => switch (locale) {
+    AppLocale.en => 'Notes',
+    AppLocale.tr => 'Notlar',
+  };
+  String get balanceOptional => switch (locale) {
+    AppLocale.en => 'Optional',
+    AppLocale.tr => 'İsteğe bağlı',
+  };
+  String get balanceAccountClosed => switch (locale) {
+    AppLocale.en => 'Balance account closed',
+    AppLocale.tr => 'Borç/alacak hesabı kapatıldı',
+  };
+  String get balanceAccountNotFound => switch (locale) {
+    AppLocale.en => 'Balance account not found',
+    AppLocale.tr => 'Borç/alacak hesabı bulunamadı',
+  };
+  String get balanceAccountRemoved => switch (locale) {
+    AppLocale.en => 'This account may have been removed.',
+    AppLocale.tr => 'Bu hesap kaldırılmış olabilir.',
+  };
+  String get balanceRemaining => switch (locale) {
+    AppLocale.en => 'Remaining balance',
+    AppLocale.tr => 'Kalan bakiye',
+  };
+  String get balanceAccountInfo => switch (locale) {
+    AppLocale.en => 'Account info',
+    AppLocale.tr => 'Hesap bilgisi',
+  };
+  String get balanceCounterparty => switch (locale) {
+    AppLocale.en => 'Counterparty',
+    AppLocale.tr => 'Karşı taraf',
+  };
+  String get balanceOpened => switch (locale) {
+    AppLocale.en => 'Opened',
+    AppLocale.tr => 'Açılış',
+  };
+  String get balanceStatus => switch (locale) {
+    AppLocale.en => 'Status',
+    AppLocale.tr => 'Durum',
+  };
+  String get addBalanceMovement => switch (locale) {
+    AppLocale.en => 'Add movement',
+    AppLocale.tr => 'Hareket ekle',
+  };
+  String get payDebt => switch (locale) {
+    AppLocale.en => 'Pay debt',
+    AppLocale.tr => 'Borç öde',
+  };
+  String get collectReceivable => switch (locale) {
+    AppLocale.en => 'Collect payment',
+    AppLocale.tr => 'Tahsilat al',
+  };
+  String get closeBalanceAccount => switch (locale) {
+    AppLocale.en => 'Close account',
+    AppLocale.tr => 'Hesabı kapat',
+  };
+  String get balanceMovementHistory => switch (locale) {
+    AppLocale.en => 'Movement history',
+    AppLocale.tr => 'Hareket geçmişi',
+  };
+  String get noBalanceMovementsYet => switch (locale) {
+    AppLocale.en => 'No movements yet',
+    AppLocale.tr => 'Henüz hareket yok',
+  };
+  String get addMovementUpper => switch (locale) {
+    AppLocale.en => 'ADD MOVEMENT',
+    AppLocale.tr => 'HAREKET EKLE',
+  };
+  String get editBalanceMovement => switch (locale) {
+    AppLocale.en => 'Edit movement',
+    AppLocale.tr => 'Hareketi düzenle',
+  };
+  String get deleteBalanceMovement => switch (locale) {
+    AppLocale.en => 'Delete movement',
+    AppLocale.tr => 'Hareketi sil',
+  };
+  String get deleteBalanceMovementConfirmTitle => switch (locale) {
+    AppLocale.en => 'Delete movement?',
+    AppLocale.tr => 'Hareket silinsin mi?',
+  };
+  String get deleteBalanceMovementConfirmMessage => switch (locale) {
+    AppLocale.en => 'This will permanently delete this balance movement.',
+    AppLocale.tr => 'Bu borç/alacak hareketi kalıcı olarak silinecek.',
+  };
+  String get balanceMovementDeleted => switch (locale) {
+    AppLocale.en => 'Balance movement deleted',
+    AppLocale.tr => 'Borç/alacak hareketi silindi',
+  };
+  String get balanceAmount => switch (locale) {
+    AppLocale.en => 'Amount',
+    AppLocale.tr => 'Tutar',
+  };
+  String get balanceOccurredDate => switch (locale) {
+    AppLocale.en => 'Occurred date',
+    AppLocale.tr => 'İşlem tarihi',
+  };
+  String get balancePaymentMethod => switch (locale) {
+    AppLocale.en => 'Payment method',
+    AppLocale.tr => 'Ödeme yöntemi',
+  };
+  String get balanceIncreased => switch (locale) {
+    AppLocale.en => 'Increased',
+    AppLocale.tr => 'Artış',
+  };
+  String get balanceDecreased => switch (locale) {
+    AppLocale.en => 'Decreased',
+    AppLocale.tr => 'Azalış',
+  };
+  String get balanceLoadError => switch (locale) {
+    AppLocale.en => 'Could not load balances',
+    AppLocale.tr => 'Borç/alacaklar yüklenemedi',
+  };
+  String get balanceAccountLoadError => switch (locale) {
+    AppLocale.en => 'Could not load balance account',
+    AppLocale.tr => 'Borç/alacak hesabı yüklenemedi',
+  };
+  String get balanceOpeningAmountInvalid => switch (locale) {
+    AppLocale.en => 'Enter a valid opening amount.',
+    AppLocale.tr => 'Geçerli bir açılış tutarı girin.',
+  };
+  String get balanceNameRequired => switch (locale) {
+    AppLocale.en => 'Enter an account name.',
+    AppLocale.tr => 'Hesap adı girin.',
+  };
+  String get balanceCounterpartyInvalid => switch (locale) {
+    AppLocale.en => 'Counterparty information is invalid.',
+    AppLocale.tr => 'Karşı taraf bilgisi geçersiz.',
+  };
+  String get balanceAmountGreaterThanZero => switch (locale) {
+    AppLocale.en => 'Enter an amount greater than £0.00.',
+    AppLocale.tr => '£0.00’dan büyük bir tutar girin.',
+  };
+  String get balanceAmountCannotExceedRemaining => switch (locale) {
+    AppLocale.en => 'Amount cannot exceed the remaining balance.',
+    AppLocale.tr => 'Tutar kalan bakiyeyi aşamaz.',
+  };
+  String get selectBalanceAccount => switch (locale) {
+    AppLocale.en => 'Select account',
+    AppLocale.tr => 'Hesap seç',
+  };
+  String get noPayablesToPay => switch (locale) {
+    AppLocale.en => 'No payable accounts with a remaining balance.',
+    AppLocale.tr => 'Ödenecek kalan bakiyesi olan borç hesabı yok.',
+  };
+  String get noReceivablesToCollect => switch (locale) {
+    AppLocale.en => 'No receivable accounts with a remaining balance.',
+    AppLocale.tr => 'Tahsil edilecek kalan bakiyesi olan alacak hesabı yok.',
+  };
+  String get balanceSaveAccountFailed => switch (locale) {
+    AppLocale.en => 'Could not save balance account. Please try again.',
+    AppLocale.tr => 'Borç/alacak hesabı kaydedilemedi. Lütfen tekrar deneyin.',
+  };
+  String get balanceSaveMovementFailed => switch (locale) {
+    AppLocale.en => 'Could not save balance movement. Please try again.',
+    AppLocale.tr =>
+      'Borç/alacak hareketi kaydedilemedi. Lütfen tekrar deneyin.',
+  };
+  String get balanceAuthenticationRequired => switch (locale) {
+    AppLocale.en => 'Please sign in again and retry.',
+    AppLocale.tr => 'Lütfen tekrar giriş yapıp yeniden deneyin.',
+  };
+  String get balanceCannotCloseNonZero => switch (locale) {
+    AppLocale.en =>
+      'Account can only be closed when the remaining balance is zero.',
+    AppLocale.tr => 'Hesap yalnızca kalan bakiye sıfırken kapatılabilir.',
+  };
+  String get balanceRemainingCannotBeNegative => switch (locale) {
+    AppLocale.en => 'Remaining balance cannot be negative.',
+    AppLocale.tr => 'Kalan bakiye eksi olamaz.',
+  };
+  String get balanceAccountMissing => switch (locale) {
+    AppLocale.en => 'Balance account was not found.',
+    AppLocale.tr => 'Borç/alacak hesabı bulunamadı.',
+  };
+  String get balanceMovementMissing => switch (locale) {
+    AppLocale.en => 'Balance movement was not found.',
+    AppLocale.tr => 'Borç/alacak hareketi bulunamadı.',
+  };
+  String get balanceDeleteMovementFailed => switch (locale) {
+    AppLocale.en => 'Could not delete balance movement. Please try again.',
+    AppLocale.tr => 'Borç/alacak hareketi silinemedi. Lütfen tekrar deneyin.',
+  };
+  String couldNotSaveBalanceAccount(String error) => balanceSaveAccountFailed;
+  String couldNotSaveBalanceMovement(String error) => balanceSaveMovementFailed;
   String get startRecordingMonth => switch (locale) {
     AppLocale.en => 'Start recording the month to assess business health.',
     AppLocale.tr =>
@@ -1740,6 +2007,109 @@ class AppLocalizations {
       AppLocale.tr => 'Diger',
     },
   };
+
+  String balanceDirectionLabel(BalanceDirection value) => switch (value) {
+    BalanceDirection.payable => switch (locale) {
+      AppLocale.en => 'Payable',
+      AppLocale.tr => 'Borç',
+    },
+    BalanceDirection.receivable => switch (locale) {
+      AppLocale.en => 'Receivable',
+      AppLocale.tr => 'Alacak',
+    },
+  };
+
+  String balanceAccountTypeLabel(BalanceAccountType value) => switch (value) {
+    BalanceAccountType.personal => switch (locale) {
+      AppLocale.en => 'Personal',
+      AppLocale.tr => 'Şahsi',
+    },
+    BalanceAccountType.bank => switch (locale) {
+      AppLocale.en => 'Bank',
+      AppLocale.tr => 'Banka',
+    },
+    BalanceAccountType.supplier => switch (locale) {
+      AppLocale.en => 'Supplier',
+      AppLocale.tr => 'Tedarikçi',
+    },
+    BalanceAccountType.customer => switch (locale) {
+      AppLocale.en => 'Customer',
+      AppLocale.tr => 'Müşteri',
+    },
+    BalanceAccountType.other => switch (locale) {
+      AppLocale.en => 'Other',
+      AppLocale.tr => 'Diğer',
+    },
+  };
+
+  String balanceAccountStatusLabel(BalanceAccountStatus value) =>
+      switch (value) {
+        BalanceAccountStatus.active => active,
+        BalanceAccountStatus.closed => switch (locale) {
+          AppLocale.en => 'Closed',
+          AppLocale.tr => 'Kapalı',
+        },
+      };
+
+  String balanceMovementTypeLabel(BalanceMovementType value) => switch (value) {
+    BalanceMovementType.increase => switch (locale) {
+      AppLocale.en => 'Increase',
+      AppLocale.tr => 'Artış',
+    },
+    BalanceMovementType.decrease => switch (locale) {
+      AppLocale.en => 'Decrease',
+      AppLocale.tr => 'Azalış',
+    },
+    BalanceMovementType.adjustment => switch (locale) {
+      AppLocale.en => 'Adjustment',
+      AppLocale.tr => 'Düzeltme',
+    },
+  };
+
+  String balanceMovementActionLabel(
+    BalanceDirection direction,
+    BalanceMovementType value,
+  ) => switch (direction) {
+    BalanceDirection.payable => switch (value) {
+      BalanceMovementType.increase => switch (locale) {
+        AppLocale.en => 'Add new debt',
+        AppLocale.tr => 'Yeni borç ekle',
+      },
+      BalanceMovementType.decrease => payDebt,
+      BalanceMovementType.adjustment => switch (locale) {
+        AppLocale.en => 'Adjustment',
+        AppLocale.tr => 'Düzeltme',
+      },
+    },
+    BalanceDirection.receivable => switch (value) {
+      BalanceMovementType.increase => switch (locale) {
+        AppLocale.en => 'Add receivable',
+        AppLocale.tr => 'Alacak ekle',
+      },
+      BalanceMovementType.decrease => switch (locale) {
+        AppLocale.en => 'Collect',
+        AppLocale.tr => 'Tahsil et',
+      },
+      BalanceMovementType.adjustment => switch (locale) {
+        AppLocale.en => 'Adjustment',
+        AppLocale.tr => 'Düzeltme',
+      },
+    },
+  };
+
+  String balancePaymentMethodLabel(BalancePaymentMethod value) =>
+      switch (value) {
+        BalancePaymentMethod.cash => cash,
+        BalancePaymentMethod.card => card,
+        BalancePaymentMethod.bank => switch (locale) {
+          AppLocale.en => 'Bank',
+          AppLocale.tr => 'Banka',
+        },
+        BalancePaymentMethod.other => switch (locale) {
+          AppLocale.en => 'Other',
+          AppLocale.tr => 'Diğer',
+        },
+      };
 
   String sourcePlatformLabel(SourcePlatformType value) => switch (value) {
     SourcePlatformType.direct => switch (locale) {
