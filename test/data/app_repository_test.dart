@@ -2062,7 +2062,9 @@ void main() {
                 'amount_minor': 9999,
                 'currency': 'GBP',
                 'frequency': 'monthly',
-                'next_due_on': '2026-04-25',
+                'next_due_on': isoDate(
+                  normalizedToday.add(const Duration(days: 4)),
+                ),
                 'reminder_days_before': 3,
                 'default_payment_method': 'card',
                 'reserve_enabled': false,

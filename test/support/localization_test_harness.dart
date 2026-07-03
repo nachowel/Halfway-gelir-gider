@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/l10n/app_localizations.dart';
 

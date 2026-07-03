@@ -551,7 +551,7 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
               ),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
-                flex: 16,
+                flex: 2,
                 child: HiFiButton(
                   label: _isEditing
                       ? context.strings.saveChanges

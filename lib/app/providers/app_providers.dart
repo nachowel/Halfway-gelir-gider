@@ -24,11 +24,15 @@ import '../../features/income_detail/domain/income_detail_models.dart';
 import '../../features/net_profit_detail/domain/net_profit_detail_models.dart';
 import '../../features/reports/domain/monthly_reports_models.dart';
 import '../../features/reports/domain/monthly_reports_service.dart';
+import '../../features/reports/domain/payee_analytics_models.dart';
+import '../../features/reports/domain/payee_analytics_service.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/app_locale_storage.dart';
 import '../../l10n/app_localizations.dart';
 
 final refreshKeyProvider = StateProvider<int>((ref) => 0);
+
+final currentDateTimeProvider = Provider<DateTime>((ref) => DateTime.now());
 
 final appLocaleStorageProvider = Provider<AppLocaleStorage>(
   (ref) => InMemoryAppLocaleStorage(),
@@ -269,6 +273,54 @@ final reportsSnapshotProvider = FutureProvider<MonthlyReportsViewModel>((
   );
   return ref.watch(reportsServiceProvider).buildViewModel(dataset, strings);
 });
+
+final payeeAnalyticsServiceProvider = Provider<PayeeAnalyticsService>(
+  (ref) => const PayeeAnalyticsService(),
+);
+
+final payeeAnalyticsQueryProvider = StateProvider<PayeeAnalyticsQuery>(
+  (ref) => const PayeeAnalyticsQuery(),
+);
+
+final payeeAnalyticsDatasetProvider = FutureProvider<PayeeAnalyticsDataset>((
+  ref,
+) async {
+  ref.watch(refreshKeyProvider);
+  return ref
+      .watch(protectedGiderRepositoryProvider)
+      .fetchPayeeAnalyticsDataset();
+});
+
+final payeeAnalyticsViewModelProvider = FutureProvider<PayeeAnalyticsViewModel>(
+  (ref) async {
+    ref.watch(refreshKeyProvider);
+    final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+    final PayeeAnalyticsDataset dataset = await ref.watch(
+      payeeAnalyticsDatasetProvider.future,
+    );
+    final PayeeAnalyticsQuery query = ref.watch(payeeAnalyticsQueryProvider);
+    return ref
+        .watch(payeeAnalyticsServiceProvider)
+        .buildViewModel(dataset: dataset, query: query, strings: strings);
+  },
+);
+
+final payeeDetailProvider = FutureProvider.family<PayeeDetailViewModel, String>(
+  (ref, payeeKey) async {
+    ref.watch(refreshKeyProvider);
+    final AppLocalizations strings = ref.watch(appLocalizationsProvider);
+    final PayeeAnalyticsDataset dataset = await ref.watch(
+      payeeAnalyticsDatasetProvider.future,
+    );
+    return ref
+        .watch(payeeAnalyticsServiceProvider)
+        .buildDetailViewModel(
+          dataset: dataset,
+          payeeKey: payeeKey,
+          strings: strings,
+        );
+  },
+);
 
 final incomeDetailProvider =
     FutureProvider.family<IncomeDetailViewModel, IncomeDetailQuery>((

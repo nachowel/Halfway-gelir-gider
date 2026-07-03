@@ -5,6 +5,8 @@ import 'package:gider/app/providers/app_providers.dart';
 import 'package:gider/app/shell/app_shell.dart';
 import 'package:gider/app/theme/app_theme.dart';
 import 'package:gider/features/reports/domain/monthly_reports_models.dart';
+import 'package:gider/data/app_models.dart';
+import 'package:gider/features/reports/domain/payee_analytics_models.dart';
 import 'package:gider/features/reports/presentation/reports_screen.dart';
 import 'package:gider/l10n/app_localizations.dart';
 import 'package:gider/shared/hi_fi/hi_fi_fab.dart';
@@ -121,6 +123,12 @@ void main() {
           }
           return aprilReport;
         }),
+        payeeAnalyticsDatasetProvider.overrideWith(
+          (_) async => const PayeeAnalyticsDataset(
+            transactions: <TransactionData>[],
+            expenseCategoryIcons: <String, IconData>{},
+          ),
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -147,6 +155,12 @@ void main() {
           }
           return aprilReport;
         }),
+        payeeAnalyticsDatasetProvider.overrideWith(
+          (_) async => const PayeeAnalyticsDataset(
+            transactions: <TransactionData>[],
+            expenseCategoryIcons: <String, IconData>{},
+          ),
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -165,6 +179,12 @@ void main() {
       overrides: <Override>[
         reportsSnapshotProvider.overrideWith(
           (_) async => throw Exception('network fail'),
+        ),
+        payeeAnalyticsDatasetProvider.overrideWith(
+          (_) async => const PayeeAnalyticsDataset(
+            transactions: <TransactionData>[],
+            expenseCategoryIcons: <String, IconData>{},
+          ),
         ),
       ],
       child: MaterialApp(
@@ -341,7 +361,7 @@ void main() {
   testWidgets('shows safe empty states across report sections', (
     WidgetTester tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(430, 1500));
+    await tester.binding.setSurfaceSize(const Size(430, 2600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(

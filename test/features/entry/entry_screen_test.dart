@@ -613,7 +613,7 @@ void main() {
     expect(find.text('Kayit kaydedilemedi'), findsOneWidget);
   });
 
-  _MockGiderRepository _editRepository({
+  _MockGiderRepository editRepository({
     required TransactionData? preload,
     bool preloadThrows = false,
     Future<void> Function()? onUpdate,
@@ -641,7 +641,7 @@ void main() {
     return repository;
   }
 
-  ProviderScope _editScope({
+  ProviderScope editScope({
     required GiderRepository repository,
     required EntryKind kind,
     required String transactionId,
@@ -668,7 +668,7 @@ void main() {
     );
   }
 
-  Widget _editScopeWithRefreshProbe({
+  Widget editScopeWithRefreshProbe({
     required GiderRepository repository,
     required EntryKind kind,
     required String transactionId,
@@ -706,7 +706,7 @@ void main() {
     );
   }
 
-  Widget _createScopeWithRefreshProbe({
+  Widget createScopeWithRefreshProbe({
     required GiderRepository repository,
     required EntryKind kind,
     List<SupplierData>? availableSuppliers,
@@ -747,10 +747,10 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(430, 1400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final repository = _editRepository(preload: null);
+      final repository = editRepository(preload: null);
 
       await tester.pumpWidget(
-        _editScope(
+        editScope(
           repository: repository,
           kind: EntryKind.expense,
           transactionId: 'tx-existing',
@@ -802,10 +802,10 @@ void main() {
       note: 'top-up',
     );
 
-    final repository = _editRepository(preload: preloadData);
+    final repository = editRepository(preload: preloadData);
 
     await tester.pumpWidget(
-      _editScope(
+      editScope(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-preload',
@@ -841,7 +841,7 @@ void main() {
     when(() => repository.createTransaction(any())).thenAnswer((_) async {});
 
     await tester.pumpWidget(
-      _createScopeWithRefreshProbe(
+      createScopeWithRefreshProbe(
         repository: repository,
         kind: EntryKind.expense,
       ),
@@ -860,54 +860,55 @@ void main() {
     expect(find.text('refresh:1'), findsOneWidget);
   });
 
-  testWidgets('expense edit preserves supplier and vendor when category is unchanged', (
-    WidgetTester tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(430, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets(
+    'expense edit preserves supplier and vendor when category is unchanged',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final preloadData = TransactionData(
-      id: 'tx-preload',
-      type: TransactionType.expense,
-      occurredOn: DateTime(2026, 4, 10),
-      amountMinor: 4250,
-      categoryId: 'expense-rent',
-      categoryName: 'Rent',
-      paymentMethod: PaymentMethodType.cash,
-      createdAt: DateTime(2026, 4, 10),
-      vendor: 'Shell Mile End',
-      supplierId: 'supp-1',
-      supplierName: 'Acme Ltd',
-      note: 'top-up',
-    );
-    final repository = _editRepository(preload: preloadData);
+      final preloadData = TransactionData(
+        id: 'tx-preload',
+        type: TransactionType.expense,
+        occurredOn: DateTime(2026, 4, 10),
+        amountMinor: 4250,
+        categoryId: 'expense-rent',
+        categoryName: 'Rent',
+        paymentMethod: PaymentMethodType.cash,
+        createdAt: DateTime(2026, 4, 10),
+        vendor: 'Shell Mile End',
+        supplierId: 'supp-1',
+        supplierName: 'Acme Ltd',
+        note: 'top-up',
+      );
+      final repository = editRepository(preload: preloadData);
 
-    await tester.pumpWidget(
-      _editScope(
-        repository: repository,
-        kind: EntryKind.expense,
-        transactionId: 'tx-preload',
-      ),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        editScope(
+          repository: repository,
+          kind: EntryKind.expense,
+          transactionId: 'tx-preload',
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Acme Ltd'), findsWidgets);
+      expect(find.text('Acme Ltd'), findsWidgets);
 
-    await tester.enterText(find.byType(TextField).first, '45.00');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Degisiklikleri kaydet'));
-    await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '45.00');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Degisiklikleri kaydet'));
+      await tester.pumpAndSettle();
 
-    final VerificationResult verifyResult = verify(
-      () => repository.updateTransaction(
-        id: captureAny(named: 'id'),
-        draft: captureAny(named: 'draft'),
-      ),
-    );
-    final EntryDraft draft = verifyResult.captured[1] as EntryDraft;
-    expect(draft.vendor, 'Shell Mile End');
-    expect(draft.supplierId, 'supp-1');
-  });
+      final VerificationResult verifyResult = verify(
+        () => repository.updateTransaction(
+          id: captureAny(named: 'id'),
+          draft: captureAny(named: 'draft'),
+        ),
+      );
+      final EntryDraft draft = verifyResult.captured[1] as EntryDraft;
+      expect(draft.vendor, 'Shell Mile End');
+      expect(draft.supplierId, 'supp-1');
+    },
+  );
 
   testWidgets('expense edit keeps archived linked supplier readable', (
     WidgetTester tester,
@@ -929,10 +930,10 @@ void main() {
       supplierName: 'Legacy Fuel',
       note: 'top-up',
     );
-    final repository = _editRepository(preload: preloadData);
+    final repository = editRepository(preload: preloadData);
 
     await tester.pumpWidget(
-      _editScope(
+      editScope(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-preload',
@@ -976,10 +977,10 @@ void main() {
       supplierName: 'Acme Ltd',
       note: 'top-up',
     );
-    final repository = _editRepository(preload: preloadData);
+    final repository = editRepository(preload: preloadData);
 
     await tester.pumpWidget(
-      _editScope(
+      editScope(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-preload',
@@ -1037,10 +1038,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _editRepository(preload: null);
+    final repository = editRepository(preload: null);
 
     await tester.pumpWidget(
-      _editScope(
+      editScope(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-del',
@@ -1070,7 +1071,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _editRepository(preload: null);
+    final repository = editRepository(preload: null);
 
     await tester.pumpWidget(
       buildRouterApp(repository: repository, initialLocation: '/summary'),
@@ -1101,7 +1102,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _editRepository(preload: null);
+    final repository = editRepository(preload: null);
 
     await tester.pumpWidget(
       buildRouterApp(
@@ -1130,10 +1131,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _editRepository(preload: null);
+    final repository = editRepository(preload: null);
 
     await tester.pumpWidget(
-      _editScopeWithRefreshProbe(
+      editScopeWithRefreshProbe(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-del',
@@ -1168,10 +1169,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(430, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final repository = _editRepository(preload: null, preloadThrows: true);
+    final repository = editRepository(preload: null, preloadThrows: true);
 
     await tester.pumpWidget(
-      _editScope(
+      editScope(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-fail',
@@ -1202,7 +1203,7 @@ void main() {
     ).thenAnswer((_) => completer.future);
 
     await tester.pumpWidget(
-      _editScope(
+      editScope(
         repository: repository,
         kind: EntryKind.expense,
         transactionId: 'tx-loading',

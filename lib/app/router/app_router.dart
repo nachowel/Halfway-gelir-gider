@@ -12,6 +12,7 @@ import '../../features/expense_detail/presentation/expense_detail_screen.dart';
 import '../../features/income_detail/presentation/income_detail_screen.dart';
 import '../../features/net_profit_detail/presentation/net_profit_detail_screen.dart';
 import '../../features/recurring/presentation/recurring_screen.dart';
+import '../../features/reports/presentation/payee_detail_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/onboarding_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -254,6 +255,18 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (BuildContext context, GoRouterState state) {
               return const NoTransitionPage<void>(child: ReportsScreen());
             },
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'payee/:payeeKey',
+                pageBuilder: (BuildContext context, GoRouterState state) {
+                  final String raw = state.pathParameters['payeeKey'] ?? '';
+                  final String payeeKey = Uri.decodeComponent(raw);
+                  return NoTransitionPage<void>(
+                    child: PayeeDetailScreen(payeeKey: payeeKey),
+                  );
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/settings',

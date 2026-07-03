@@ -59,104 +59,100 @@ void main() {
     return ProviderScope(
       overrides: <Override>[
         giderRepositoryProvider.overrideWithValue(repository),
-        expenseCategoriesProvider.overrideWith(
-          (ref) async => categories,
+        expenseCategoriesProvider.overrideWith((ref) async => categories),
+        suppliersProvider.overrideWith(
+          (ref, query) => suppliersForQuery(query),
         ),
-        suppliersProvider.overrideWith((ref, query) => suppliersForQuery(query)),
         activeSuppliersProvider.overrideWith(
           (ref) => suppliersForQuery(const SuppliersQuery()),
         ),
       ],
-      child: buildLocalizedScaffoldTestApp(
-        child: const SuppliersScreen(),
-      ),
+      child: buildLocalizedScaffoldTestApp(child: const SuppliersScreen()),
     );
   }
 
-  Finder _nameField() =>
+  Finder nameField() =>
       find.byKey(const ValueKey<String>('supplier-name-field'));
 
-  Finder _saveButton() =>
+  Finder saveButton() =>
       find.byKey(const ValueKey<String>('supplier-save-button'));
 
-  Finder _categoryChip(String label) =>
+  Finder categoryChip(String label) =>
       find.widgetWithText(HiFiFilterChip, label).last;
 
-  testWidgets(
-    'suppliers screen shows empty state when no suppliers exist',
-    (WidgetTester tester) async {
-      await tester.binding.setSurfaceSize(const Size(430, 1200));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets('suppliers screen shows empty state when no suppliers exist', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(430, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final _MockGiderRepository repository = _MockGiderRepository();
+    final _MockGiderRepository repository = _MockGiderRepository();
 
-      await tester.pumpWidget(
-        buildApp(
-          repository: repository,
-          suppliersForQuery: (_) async => const <SupplierData>[],
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      buildApp(
+        repository: repository,
+        suppliersForQuery: (_) async => const <SupplierData>[],
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('No suppliers yet'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey<String>('supplier-add-action')),
-        findsOneWidget,
-      );
-    },
-  );
+    expect(find.text('No suppliers yet'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('supplier-add-action')),
+      findsOneWidget,
+    );
+  });
 
-  testWidgets(
-    'suppliers screen renders populated rows and category filter',
-    (WidgetTester tester) async {
-      await tester.binding.setSurfaceSize(const Size(430, 1200));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets('suppliers screen renders populated rows and category filter', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(430, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final _MockGiderRepository repository = _MockGiderRepository();
-      const SupplierData rentSupplier = SupplierData(
-        id: 'supp-1',
-        expenseCategoryId: 'cat-rent',
-        expenseCategoryName: 'Rent',
-        name: 'Acme Ltd',
-        sortOrder: 0,
-        isArchived: false,
-      );
-      const SupplierData suppliesSupplier = SupplierData(
-        id: 'supp-2',
-        expenseCategoryId: 'cat-supplies',
-        expenseCategoryName: 'Supplies',
-        name: 'Bravo Foods',
-        sortOrder: 1,
-        isArchived: false,
-      );
+    final _MockGiderRepository repository = _MockGiderRepository();
+    const SupplierData rentSupplier = SupplierData(
+      id: 'supp-1',
+      expenseCategoryId: 'cat-rent',
+      expenseCategoryName: 'Rent',
+      name: 'Acme Ltd',
+      sortOrder: 0,
+      isArchived: false,
+    );
+    const SupplierData suppliesSupplier = SupplierData(
+      id: 'supp-2',
+      expenseCategoryId: 'cat-supplies',
+      expenseCategoryName: 'Supplies',
+      name: 'Bravo Foods',
+      sortOrder: 1,
+      isArchived: false,
+    );
 
-      await tester.pumpWidget(
-        buildApp(
-          repository: repository,
-          suppliersForQuery: (SuppliersQuery query) async {
-            switch (query.expenseCategoryId) {
-              case 'cat-rent':
-                return const <SupplierData>[rentSupplier];
-              case 'cat-supplies':
-                return const <SupplierData>[suppliesSupplier];
-              default:
-                return const <SupplierData>[rentSupplier, suppliesSupplier];
-            }
-          },
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      buildApp(
+        repository: repository,
+        suppliersForQuery: (SuppliersQuery query) async {
+          switch (query.expenseCategoryId) {
+            case 'cat-rent':
+              return const <SupplierData>[rentSupplier];
+            case 'cat-supplies':
+              return const <SupplierData>[suppliesSupplier];
+            default:
+              return const <SupplierData>[rentSupplier, suppliesSupplier];
+          }
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Acme Ltd'), findsOneWidget);
-      expect(find.text('Bravo Foods'), findsOneWidget);
+    expect(find.text('Acme Ltd'), findsOneWidget);
+    expect(find.text('Bravo Foods'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(HiFiFilterChip, 'Rent').first);
-      await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(HiFiFilterChip, 'Rent').first);
+    await tester.pumpAndSettle();
 
-      expect(find.text('Acme Ltd'), findsOneWidget);
-      expect(find.text('Bravo Foods'), findsNothing);
-    },
-  );
+    expect(find.text('Acme Ltd'), findsOneWidget);
+    expect(find.text('Bravo Foods'), findsNothing);
+  });
 
   testWidgets('suppliers screen adds a supplier', (WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(430, 1200));
@@ -192,15 +188,15 @@ void main() {
 
     expect(find.text('Add supplier'), findsWidgets);
 
-    await tester.tap(_saveButton());
+    await tester.tap(saveButton());
     await tester.pumpAndSettle();
     expect(find.text('Supplier name is required'), findsOneWidget);
     expect(find.text('Category is required'), findsOneWidget);
 
-    await tester.enterText(_nameField(), 'Acme Ltd');
-    await tester.tap(_categoryChip('Rent'));
+    await tester.enterText(nameField(), 'Acme Ltd');
+    await tester.tap(categoryChip('Rent'));
     await tester.pumpAndSettle();
-    await tester.tap(_saveButton());
+    await tester.tap(saveButton());
     await tester.pumpAndSettle();
 
     final VerificationResult verification = verify(
@@ -245,12 +241,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey<String>('supplier-add-action')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('supplier-add-action')),
+      );
       await tester.pumpAndSettle();
-      await tester.enterText(_nameField(), 'Acme Ltd');
-      await tester.tap(_categoryChip('Rent'));
+      await tester.enterText(nameField(), 'Acme Ltd');
+      await tester.tap(categoryChip('Rent'));
       await tester.pumpAndSettle();
-      await tester.tap(_saveButton());
+      await tester.tap(saveButton());
       await tester.pumpAndSettle();
 
       expect(
@@ -304,11 +302,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('supplier-row-supp-1')));
     await tester.pumpAndSettle();
 
-    await tester.enterText(_nameField(), '');
-    await tester.enterText(_nameField(), 'Acme Wholesale');
-    await tester.tap(_categoryChip('Supplies'));
+    await tester.enterText(nameField(), '');
+    await tester.enterText(nameField(), 'Acme Wholesale');
+    await tester.tap(categoryChip('Supplies'));
     await tester.pumpAndSettle();
-    await tester.tap(_saveButton());
+    await tester.tap(saveButton());
     await tester.pumpAndSettle();
 
     final VerificationResult verification = verify(
@@ -415,9 +413,7 @@ void main() {
             return const <SupplierData>[];
           }),
         ],
-        child: buildLocalizedScaffoldTestApp(
-          child: const SuppliersScreen(),
-        ),
+        child: buildLocalizedScaffoldTestApp(child: const SuppliersScreen()),
       ),
     );
     await tester.pumpAndSettle();

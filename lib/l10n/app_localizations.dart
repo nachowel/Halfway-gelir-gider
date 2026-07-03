@@ -370,6 +370,14 @@ class AppLocalizations {
     AppLocale.en => 'Close account',
     AppLocale.tr => 'Hesabı kapat',
   };
+  String get deleteBalanceAccount => switch (locale) {
+    AppLocale.en => 'Delete account',
+    AppLocale.tr => 'Hesabı sil',
+  };
+  String get deleteBalanceAccountConfirmMessage => switch (locale) {
+    AppLocale.en => 'Are you sure you want to delete this account?',
+    AppLocale.tr => 'Bu hesabı silmek istediğinize emin misiniz?',
+  };
   String get balanceMovementHistory => switch (locale) {
     AppLocale.en => 'Movement history',
     AppLocale.tr => 'Hareket geçmişi',
@@ -480,6 +488,10 @@ class AppLocalizations {
       'Account can only be closed when the remaining balance is zero.',
     AppLocale.tr => 'Hesap yalnızca kalan bakiye sıfırken kapatılabilir.',
   };
+  String get balanceDeleteRequiresZero => switch (locale) {
+    AppLocale.en => 'Balance must be zero to delete this account',
+    AppLocale.tr => 'Bu hesabı silmek için bakiye sıfır olmalı',
+  };
   String get balanceRemainingCannotBeNegative => switch (locale) {
     AppLocale.en => 'Remaining balance cannot be negative.',
     AppLocale.tr => 'Kalan bakiye eksi olamaz.',
@@ -495,6 +507,10 @@ class AppLocalizations {
   String get balanceDeleteMovementFailed => switch (locale) {
     AppLocale.en => 'Could not delete balance movement. Please try again.',
     AppLocale.tr => 'Borç/alacak hareketi silinemedi. Lütfen tekrar deneyin.',
+  };
+  String get balanceDeleteAccountFailed => switch (locale) {
+    AppLocale.en => 'Could not delete balance account. Please try again.',
+    AppLocale.tr => 'Borç/alacak hesabı silinemedi. Lütfen tekrar deneyin.',
   };
   String couldNotSaveBalanceAccount(String error) => balanceSaveAccountFailed;
   String couldNotSaveBalanceMovement(String error) => balanceSaveMovementFailed;
@@ -2263,6 +2279,291 @@ class AppLocalizations {
       _ => raw,
     };
   }
+
+  String get payeeAnalytics => switch (locale) {
+    AppLocale.en => 'Payee Analytics',
+    AppLocale.tr => 'Kime Odedim',
+  };
+  String get payeeSearchHint => switch (locale) {
+    AppLocale.en => 'Search payee',
+    AppLocale.tr => 'Kisi / tedarikci ara',
+  };
+  String get unknownPayee => switch (locale) {
+    AppLocale.en => 'Unknown',
+    AppLocale.tr => 'Bilinmiyor',
+  };
+  String get customRange => switch (locale) {
+    AppLocale.en => 'Custom range',
+    AppLocale.tr => 'Ozel aralik',
+  };
+  String get last3Weeks => switch (locale) {
+    AppLocale.en => 'Last 3 weeks',
+    AppLocale.tr => 'Son 3 hafta',
+  };
+  String get last1Month => switch (locale) {
+    AppLocale.en => 'Last 1 month',
+    AppLocale.tr => 'Son 1 ay',
+  };
+  String get last2Months => switch (locale) {
+    AppLocale.en => 'Last 2 months',
+    AppLocale.tr => 'Son 2 ay',
+  };
+  String get thisYear => switch (locale) {
+    AppLocale.en => 'This year',
+    AppLocale.tr => 'Bu yil',
+  };
+  String get lastYear => switch (locale) {
+    AppLocale.en => 'Last year',
+    AppLocale.tr => 'Gecen yil',
+  };
+  String get paidThisWeek => switch (locale) {
+    AppLocale.en => 'Paid this week',
+    AppLocale.tr => 'Bu hafta odenen',
+  };
+  String get paidLastWeek => switch (locale) {
+    AppLocale.en => 'Paid last week',
+    AppLocale.tr => 'Gecen hafta odenen',
+  };
+  String get paidThisMonth => switch (locale) {
+    AppLocale.en => 'Paid this month',
+    AppLocale.tr => 'Bu ay odenen',
+  };
+  String get paidLastMonth => switch (locale) {
+    AppLocale.en => 'Paid last month',
+    AppLocale.tr => 'Gecen ay odenen',
+  };
+  String get paidLast3Weeks => switch (locale) {
+    AppLocale.en => 'Paid last 3 weeks',
+    AppLocale.tr => 'Son 3 hafta odenen',
+  };
+  String get paidLast1Month => switch (locale) {
+    AppLocale.en => 'Paid last 1 month',
+    AppLocale.tr => 'Son 1 ay odenen',
+  };
+  String get paidLast2Months => switch (locale) {
+    AppLocale.en => 'Paid last 2 months',
+    AppLocale.tr => 'Son 2 ay odenen',
+  };
+  String get paidThisYear => switch (locale) {
+    AppLocale.en => 'Paid this year',
+    AppLocale.tr => 'Bu yil odenen',
+  };
+  String get paidLastYear => switch (locale) {
+    AppLocale.en => 'Paid last year',
+    AppLocale.tr => 'Gecen yil odenen',
+  };
+  String get lifetimeTotal => switch (locale) {
+    AppLocale.en => 'Lifetime total',
+    AppLocale.tr => 'Toplam odenen',
+  };
+  String get payeeDetailTitle => switch (locale) {
+    AppLocale.en => 'Payee detail',
+    AppLocale.tr => 'Kisi detaylari',
+  };
+  String get payeeNoTransactions => switch (locale) {
+    AppLocale.en => 'No transactions for this payee',
+    AppLocale.tr => 'Bu kisi icin kayit yok',
+  };
+  String payeeLastPayment(DateTime date) => switch (locale) {
+    AppLocale.en => 'Last payment ${dayMonthShortWeekday(date)}',
+    AppLocale.tr => 'Son odeme ${dayMonthShortWeekday(date)}',
+  };
+  String get payeeTransactionCount => switch (locale) {
+    AppLocale.en => 'Transaction count',
+    AppLocale.tr => 'Islem sayisi',
+  };
+  String get noPayeesInRange => switch (locale) {
+    AppLocale.en => 'No payees in this range',
+    AppLocale.tr => 'Bu aralikta kisi yok',
+  };
+  String get topPayees => switch (locale) {
+    AppLocale.en => 'Top payees',
+    AppLocale.tr => 'En cok odenenler',
+  };
+  String get thisWeekVsLastWeek => switch (locale) {
+    AppLocale.en => 'This week vs last week',
+    AppLocale.tr => 'Bu hafta vs gecen hafta',
+  };
+  String get thisMonthVsLastMonth => switch (locale) {
+    AppLocale.en => 'This month vs last month',
+    AppLocale.tr => 'Bu ay vs gecen ay',
+  };
+  String get thisYearVsLastYear => switch (locale) {
+    AppLocale.en => 'This year vs last year',
+    AppLocale.tr => 'Bu yil vs gecen yil',
+  };
+  String get averagePayment => switch (locale) {
+    AppLocale.en => 'Average payment',
+    AppLocale.tr => 'Ortalama odeme',
+  };
+  String get largestPayment => switch (locale) {
+    AppLocale.en => 'Largest payment',
+    AppLocale.tr => 'En buyuk odeme',
+  };
+  String get smallestPayment => switch (locale) {
+    AppLocale.en => 'Smallest payment',
+    AppLocale.tr => 'En kucuk odeme',
+  };
+  String get avgDaysBetween => switch (locale) {
+    AppLocale.en => 'Avg days between',
+    AppLocale.tr => 'Ort. gun arasi',
+  };
+  String get payeeCategoryBreakdown => switch (locale) {
+    AppLocale.en => 'Category breakdown',
+    AppLocale.tr => 'Kategori dagilimi',
+  };
+  String get weeklyTrend => switch (locale) {
+    AppLocale.en => 'Weekly trend (12 weeks)',
+    AppLocale.tr => 'Haftalik egilim (12 hafta)',
+  };
+  String get payeeMonthlyTrend => switch (locale) {
+    AppLocale.en => 'Monthly trend (12 months)',
+    AppLocale.tr => 'Aylik egilim (12 ay)',
+  };
+  String get comparisonMetrics => switch (locale) {
+    AppLocale.en => 'Comparison',
+    AppLocale.tr => 'Karsilastirma',
+  };
+  String get supplierScorecard => switch (locale) {
+    AppLocale.en => 'Supplier scorecard',
+    AppLocale.tr => 'Tedarikci skor karti',
+  };
+  String get spendingTrends => switch (locale) {
+    AppLocale.en => 'Spending trends',
+    AppLocale.tr => 'Harcama egilimleri',
+  };
+  String get purchaseFrequency => switch (locale) {
+    AppLocale.en => 'Purchase frequency',
+    AppLocale.tr => 'Odeme sikligi',
+  };
+  String get expectedNextPurchase => switch (locale) {
+    AppLocale.en => 'Expected next purchase',
+    AppLocale.tr => 'Tahmini sonraki odeme',
+  };
+  String get purchaseOverdue => switch (locale) {
+    AppLocale.en => 'Purchase overdue',
+    AppLocale.tr => 'Odeme gecikti',
+  };
+  String get biggestPurchases => switch (locale) {
+    AppLocale.en => 'Biggest purchases',
+    AppLocale.tr => 'En buyuk odemeler',
+  };
+  String get spendingDistribution => switch (locale) {
+    AppLocale.en => 'Spending distribution',
+    AppLocale.tr => 'Harcama dagilimi',
+  };
+  String get monthlyHistory => switch (locale) {
+    AppLocale.en => 'Monthly history (24 months)',
+    AppLocale.tr => 'Aylik gecmis (24 ay)',
+  };
+  String get supplierAlerts => switch (locale) {
+    AppLocale.en => 'Alerts',
+    AppLocale.tr => 'Uyarilar',
+  };
+  String get sortLabel => switch (locale) {
+    AppLocale.en => 'Sort',
+    AppLocale.tr => 'Sirala',
+  };
+  String get sortHighestSpend => switch (locale) {
+    AppLocale.en => 'Highest spend',
+    AppLocale.tr => 'En yuksek harcama',
+  };
+  String get sortLowestSpend => switch (locale) {
+    AppLocale.en => 'Lowest spend',
+    AppLocale.tr => 'En dusuk harcama',
+  };
+  String get sortMostTransactions => switch (locale) {
+    AppLocale.en => 'Most transactions',
+    AppLocale.tr => 'En cok islem',
+  };
+  String get sortLeastTransactions => switch (locale) {
+    AppLocale.en => 'Least transactions',
+    AppLocale.tr => 'En az islem',
+  };
+  String get sortRecentlyUsed => switch (locale) {
+    AppLocale.en => 'Recently used',
+    AppLocale.tr => 'En son kullanilan',
+  };
+  String get sortLongestInactive => switch (locale) {
+    AppLocale.en => 'Longest inactive',
+    AppLocale.tr => 'En uzun pasif',
+  };
+  String get sortAlphabetical => switch (locale) {
+    AppLocale.en => 'Alphabetical',
+    AppLocale.tr => 'Alfabetik',
+  };
+  String get trendIncreasing => switch (locale) {
+    AppLocale.en => 'Increasing',
+    AppLocale.tr => 'Artan',
+  };
+  String get trendStable => switch (locale) {
+    AppLocale.en => 'Stable',
+    AppLocale.tr => 'Stabil',
+  };
+  String get trendDecreasing => switch (locale) {
+    AppLocale.en => 'Decreasing',
+    AppLocale.tr => 'Azalan',
+  };
+  String get trendInsufficient => switch (locale) {
+    AppLocale.en => 'Insufficient data',
+    AppLocale.tr => 'Yetersiz veri',
+  };
+  String get movingAverage3Month => switch (locale) {
+    AppLocale.en => '3-month moving average',
+    AppLocale.tr => '3 aylik hareketli ortalama',
+  };
+  String get yearOverYear => switch (locale) {
+    AppLocale.en => 'Year-over-year',
+    AppLocale.tr => 'Yil bazli karsilastirma',
+  };
+  String get lifetimeSpend => switch (locale) {
+    AppLocale.en => 'Lifetime spend',
+    AppLocale.tr => 'Toplam harcama',
+  };
+  String get firstPurchase => switch (locale) {
+    AppLocale.en => 'First purchase',
+    AppLocale.tr => 'Ilk satin alma',
+  };
+  String get lastPurchase => switch (locale) {
+    AppLocale.en => 'Last purchase',
+    AppLocale.tr => 'Son satin alma',
+  };
+  String get daysSinceLast => switch (locale) {
+    AppLocale.en => 'Days since last',
+    AppLocale.tr => 'Uzerinden gecen gun',
+  };
+  String get avgMonthlySpend => switch (locale) {
+    AppLocale.en => 'Avg monthly spend',
+    AppLocale.tr => 'Ort. aylik harcama',
+  };
+  String get avgWeeklySpend => switch (locale) {
+    AppLocale.en => 'Avg weekly spend',
+    AppLocale.tr => 'Ort. haftalik harcama',
+  };
+  String alertInactivity(int days) => switch (locale) {
+    AppLocale.en => 'This supplier hasn\'t been used for $days days.',
+    AppLocale.tr => 'Bu tedarikci $days gundur kullanilmiyor.',
+  };
+  String alertSpendingIncrease(int percent) => switch (locale) {
+    AppLocale.en => 'Monthly spending increased by $percent%.',
+    AppLocale.tr => 'Aylik harcama %$percent artti.',
+  };
+  String get alertLargePayment => switch (locale) {
+    AppLocale.en => 'Large payment detected.',
+    AppLocale.tr => 'Buyuk odeme tespit edildi.',
+  };
+  String get alertHighestMonth => switch (locale) {
+    AppLocale.en => 'Highest monthly spend ever.',
+    AppLocale.tr => 'Rekor aylik harcama.',
+  };
+  String get alertAverageIncrease => switch (locale) {
+    AppLocale.en => 'Average invoice value increased.',
+    AppLocale.tr => 'Ortalama fatura tutari artti.',
+  };
+  String alertPurchaseOverdue(int days) => switch (locale) {
+    AppLocale.en => 'Purchase overdue by $days days.',
+    AppLocale.tr => 'Odeme $days gun gecti.',
+  };
 
   String formatPercent(double? value) {
     if (value == null || !value.isFinite) {

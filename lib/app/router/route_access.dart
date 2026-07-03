@@ -14,6 +14,7 @@ const Set<String> kProtectedRoutePaths = <String>{
   '/summary/net-profit',
   '/transactions',
   '/reports',
+  '/reports/payee/:payeeKey',
   '/settings',
   '/settings/categories',
   '/settings/recurring',
@@ -29,6 +30,7 @@ const Set<String> kPostAuthRestorableRoutePaths = <String>{
   '/summary/net-profit',
   '/transactions',
   '/reports',
+  '/reports/payee/:payeeKey',
   '/entry/income',
   '/entry/expense',
 };

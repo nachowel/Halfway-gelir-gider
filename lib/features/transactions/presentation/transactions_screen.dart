@@ -14,6 +14,7 @@ import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
 import '../../../shared/hi_fi/hi_fi_list_row.dart';
 import '../../../shared/overlay/app_overlay.dart';
 import '../../../shared/widgets/app_button.dart';
+import '../domain/transaction_subtitle.dart';
 
 const Object _unset = Object();
 
@@ -606,8 +607,12 @@ class _TransactionRow extends StatelessWidget {
             ? HiFiIconTileTone.income
             : HiFiIconTileTone.expense,
       ),
-      title: _title(transaction),
-      meta: _meta(context, transaction),
+      title: buildTransactionTitle(transaction),
+      meta: buildTransactionSubtitle(
+        transaction: transaction,
+        paymentLabel: context.strings.paymentMethodLabel,
+        sourcePlatformLabel: context.strings.sourcePlatformLabel,
+      ),
       trailing: _TransactionAmount(
         amount: _formatAmount(transaction.amountMinor),
         income: transaction.type == TransactionType.income,
@@ -635,23 +640,6 @@ String _dateLabel(BuildContext context, DateTime date) =>
 String _netLabel(BuildContext context, int netMinor) {
   final bool positive = netMinor >= 0;
   return '${context.strings.net.toLowerCase()} ${positive ? '+' : '-'}${_formatAmount(netMinor.abs())}';
-}
-
-String _title(TransactionData transaction) {
-  final String? vendor = transaction.vendor?.trim();
-  return (vendor != null && vendor.isNotEmpty)
-      ? vendor
-      : transaction.categoryName;
-}
-
-String _meta(BuildContext context, TransactionData transaction) {
-  final List<String> parts = <String>[
-    transaction.categoryName,
-    context.strings.paymentMethodLabel(transaction.paymentMethod),
-    if (transaction.sourcePlatform != null)
-      context.strings.sourcePlatformLabel(transaction.sourcePlatform!),
-  ];
-  return parts.join(' · ');
 }
 
 String _formatAmount(int minor) {

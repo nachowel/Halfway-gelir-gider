@@ -367,7 +367,7 @@ class _MarkPaidSheetState extends State<_MarkPaidSheet> {
               ),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
-                flex: 16,
+                flex: 2,
                 child: HiFiButton(
                   label: switch (_submitState) {
                     _SubmitState.saving => strings.saving,

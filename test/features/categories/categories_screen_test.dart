@@ -8,6 +8,7 @@ import 'package:gider/data/app_repository.dart';
 import 'package:gider/features/categories/presentation/categories_screen.dart';
 import 'package:gider/l10n/app_localizations.dart';
 import 'package:gider/shared/hi_fi/hi_fi_icon_tile.dart';
+import 'package:gider/shared/widgets/app_button.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockGiderRepository extends Mock implements GiderRepository {}
@@ -78,5 +79,28 @@ void main() {
 
     expect(find.text('Card Sales'), findsOneWidget);
     expect(find.text('Rent'), findsNothing);
+  });
+
+  testWidgets('category editor keeps cancel action visible beside save', (
+    WidgetTester tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(buildTestApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Rent'));
+    await tester.pumpAndSettle();
+
+    final Finder cancelButton = find.ancestor(
+      of: find.text('Cancel'),
+      matching: find.byType(AppButton),
+    );
+
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(cancelButton, findsOneWidget);
+    expect(tester.getSize(cancelButton).width, greaterThan(90));
+    expect(tester.takeException(), isNull);
   });
 }

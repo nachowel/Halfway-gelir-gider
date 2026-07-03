@@ -351,7 +351,7 @@ void main() {
 
     expect(find.text('Recent'), findsOneWidget);
     expect(find.byType(TransactionListItem), findsNWidgets(2));
-    expect(find.text('Walk-in sales'), findsOneWidget);
+    expect(find.textContaining('Walk-in sales'), findsOneWidget);
     expect(find.text('Rent'), findsWidgets);
   });
 
@@ -398,7 +398,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TransactionListItem), findsNWidgets(4));
-      expect(find.text('Dropped fifth'), findsNothing);
+      expect(find.textContaining('Dropped fifth'), findsNothing);
       _expectVerticalOrder(tester, <String>[
         'Newest tie later create',
         'Newest tie earlier create',
@@ -549,7 +549,7 @@ TransactionData _transaction({
 void _expectVerticalOrder(WidgetTester tester, List<String> labels) {
   double? previousTop;
   for (final String label in labels) {
-    final Finder finder = find.text(label);
+    final Finder finder = find.textContaining(label);
     expect(finder, findsOneWidget);
     final double top = tester.getTopLeft(finder).dy;
     if (previousTop != null) {

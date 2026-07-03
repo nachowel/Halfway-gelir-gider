@@ -7,6 +7,7 @@ import '../../../app/theme/app_tokens.dart';
 import '../../../app/theme/app_typography.dart';
 import '../../../data/app_models.dart';
 import '../../../features/recurring/presentation/mark_paid_sheet.dart';
+import '../../../features/transactions/domain/transaction_subtitle.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
@@ -415,13 +416,12 @@ class _RecentSection extends StatelessWidget {
                 for (int i = 0; i < transactions.length; i++)
                   TransactionListItem(
                     data: TransactionListItemData(
-                      title: transactions[i].vendor?.trim().isNotEmpty == true
-                          ? transactions[i].vendor!
-                          : strings.systemCategoryName(
-                              transactions[i].categoryName,
-                            ),
-                      meta:
-                          '${strings.systemCategoryName(transactions[i].categoryName)} · ${strings.paymentMethodLabel(transactions[i].paymentMethod)}',
+                      title: buildTransactionTitle(transactions[i]),
+                      meta: buildTransactionSubtitle(
+                        transaction: transactions[i],
+                        paymentLabel: strings.paymentMethodLabel,
+                        sourcePlatformLabel: strings.sourcePlatformLabel,
+                      ),
                       amount: strings.currencyMinor(
                         transactions[i].amountMinor,
                       ),

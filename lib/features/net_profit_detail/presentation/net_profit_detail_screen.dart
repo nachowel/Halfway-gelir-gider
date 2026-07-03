@@ -39,7 +39,7 @@ class _NetProfitDetailScreenState extends ConsumerState<NetProfitDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations strings = context.strings;
-    final DateTime today = DateTime.now();
+    final DateTime today = ref.watch(currentDateTimeProvider);
     final NetProfitDetailRange previewRange = _service.resolveRange(
       today: today,
       query: _query,
@@ -122,7 +122,7 @@ class _NetProfitDetailScreenState extends ConsumerState<NetProfitDetailScreen> {
 
   Future<void> _handlePresetSelected(NetProfitDetailRangePreset preset) async {
     if (preset == NetProfitDetailRangePreset.custom) {
-      final DateTime now = DateTime.now();
+      final DateTime now = ref.read(currentDateTimeProvider);
       final NetProfitDetailRange currentRange = _service.resolveRange(
         today: now,
         query: _query,

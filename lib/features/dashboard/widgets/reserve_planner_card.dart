@@ -57,7 +57,7 @@ class ReservePlannerCard extends StatelessWidget {
                 ),
               ),
               const Icon(
-                Icons.savings_outlined,
+                Icons.paid_outlined,
                 size: 18,
                 color: AppColors.brand,
               ),

@@ -127,6 +127,7 @@ class TransactionData {
     this.vendor,
     this.supplierId,
     this.supplierName,
+    this.staffName,
     this.attachmentPath,
     this.recurringExpenseId,
   });
@@ -144,6 +145,7 @@ class TransactionData {
   final String? vendor;
   final String? supplierId;
   final String? supplierName;
+  final String? staffName;
   final String? attachmentPath;
   final String? recurringExpenseId;
 }
@@ -364,6 +366,7 @@ class EntryDraft {
     this.note,
     this.vendor,
     this.supplierId,
+    this.staffName,
     this.attachmentPath,
   });
 
@@ -376,6 +379,7 @@ class EntryDraft {
   final String? note;
   final String? vendor;
   final String? supplierId;
+  final String? staffName;
   final String? attachmentPath;
 }
 

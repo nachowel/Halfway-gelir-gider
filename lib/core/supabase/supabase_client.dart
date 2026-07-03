@@ -84,6 +84,13 @@ abstract final class AppSupabaseClient {
     final SupabaseRuntimeConfig config =
         SupabaseRuntimeConfig.fromEnvironment();
 
-    await Supabase.initialize(url: config.url, anonKey: config.anonKey);
+    await Supabase.initialize(
+      url: config.url,
+      anonKey: config.anonKey,
+      authOptions: const FlutterAuthClientOptions(
+        autoRefreshToken: true,
+        detectSessionInUri: true,
+      ),
+    );
   }
 }

@@ -36,7 +36,7 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations strings = context.strings;
-    final DateTime today = DateTime.now();
+    final DateTime today = ref.watch(currentDateTimeProvider);
     final IncomeDetailRange previewRange = _service.resolveRange(
       today: today,
       query: _query,
@@ -119,7 +119,7 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
 
   Future<void> _handlePresetSelected(IncomeDetailRangePreset preset) async {
     if (preset == IncomeDetailRangePreset.custom) {
-      final DateTime now = DateTime.now();
+      final DateTime now = ref.read(currentDateTimeProvider);
       final IncomeDetailRange currentRange = _service.resolveRange(
         today: now,
         query: _query,

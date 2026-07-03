@@ -352,6 +352,26 @@ class BalancesRepository {
         .eq('user_id', _user.id);
   }
 
+  Future<void> deleteAccount(String id) async {
+    final String accountId = domain.requireTrimmedText(
+      id,
+      'balance_account_id',
+    );
+    final BalanceAccountData account = await _fetchExistingAccount(accountId);
+    if (account.remainingMinor != 0) {
+      throw const domain.DomainValidationException(
+        code: 'balance.delete_requires_zero',
+        message: 'Balance must be zero to delete this account.',
+      );
+    }
+
+    await _client
+        .from('balance_accounts')
+        .delete()
+        .eq('id', accountId)
+        .eq('user_id', _user.id);
+  }
+
   Future<void> _deleteCreatedAccount(String accountId) async {
     await _client
         .from('balance_accounts')

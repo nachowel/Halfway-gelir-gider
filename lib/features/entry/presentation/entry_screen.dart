@@ -15,7 +15,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/hi_fi/hi_fi_attachment_tile.dart';
 import '../../../shared/hi_fi/hi_fi_bottom_sheet.dart';
 import '../../../shared/hi_fi/hi_fi_filter_chip.dart';
-import '../../../shared/hi_fi/hi_fi_icon_tile.dart';
 import '../../../shared/hi_fi/hi_fi_screen_background.dart';
 import '../../../shared/layout/mobile_scaffold.dart';
 import '../../../shared/overlay/app_overlay.dart';
@@ -231,6 +230,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     } on DomainValidationException catch (error) {
       _showErrorSnack(error.message);
     } catch (error) {
+      if (!mounted) {
+        return;
+      }
       _showErrorSnack(context.strings.couldNotDeleteEntry(error.toString()));
     } finally {
       if (mounted) setState(() => _deleting = false);
@@ -284,111 +286,6 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       return;
     }
     setState(() => _occurredOn = picked);
-  }
-
-  Future<void> _pickCategory(List<CategoryData> categories) async {
-    FocusScope.of(context).unfocus();
-    if (categories.isEmpty) {
-      return;
-    }
-    final CategoryData? selected = await showAppModalBottomSheet<CategoryData>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext sheetContext) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.border),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadius.sheetTop),
-                  bottom: Radius.circular(AppRadius.sheetBottom),
-                ),
-                boxShadow: AppShadows.lg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(top: 12, bottom: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0x2E15282B),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        sheetContext.strings.chooseCategorySheetTitle,
-                        style: AppTypography.eye,
-                      ),
-                    ),
-                  ),
-                  for (final CategoryData category in categories)
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => Navigator.of(sheetContext).pop(category),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                          child: Row(
-                            children: <Widget>[
-                              HiFiIconTile(
-                                icon: category.icon,
-                                tone: category.tone,
-                                size: HiFiIconTileSize.small,
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: Text(
-                                  category.name,
-                                  style: AppTypography.body.copyWith(
-                                    fontSize: 14.5,
-                                  ),
-                                ),
-                              ),
-                              if (_selectedCategoryId == category.id)
-                                const Icon(
-                                  Icons.check_rounded,
-                                  size: 18,
-                                  color: AppColors.income,
-                                )
-                              else
-                                const Icon(
-                                  Icons.chevron_right_rounded,
-                                  size: 18,
-                                  color: AppColors.inkFade,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    if (selected == null) {
-      return;
-    }
-    setState(() {
-      _selectedCategoryId = selected.id;
-      _selectedSupplierId = null;
-      _selectedSupplierName = null;
-      _categoryError = null;
-    });
   }
 
   Future<void> _pickSupplier({
@@ -790,6 +687,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
         debugPrint('INCOME_SAVE_ERROR');
         debugPrint('INCOME_SAVE_ERROR_DETAILS: $error');
       }
+      if (!mounted) {
+        return;
+      }
       _showErrorSnack(context.strings.couldNotSaveEntry(error.toString()));
     } finally {
       if (mounted && !_saveSucceeded) {
@@ -871,9 +771,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final bool suppliersLoading =
         _isExpense && _selectedCategoryId != null && suppliersAsync.isLoading;
     final String? suppliersErrorMessage =
-        _isExpense &&
-            _selectedCategoryId != null &&
-            suppliersAsync.hasError
+        _isExpense && _selectedCategoryId != null && suppliersAsync.hasError
         ? suppliersAsync.error.toString()
         : null;
     SupplierData? selectedActiveSupplier;
@@ -1349,10 +1247,11 @@ class _ExpenseFields extends StatelessWidget {
               Expanded(
                 child: Text(
                   selectedSupplierName ?? strings.chooseSupplier,
-                  style: (selectedSupplierName == null
-                          ? AppTypography.bodySoft
-                          : AppTypography.body)
-                      .copyWith(fontSize: 14.5),
+                  style:
+                      (selectedSupplierName == null
+                              ? AppTypography.bodySoft
+                              : AppTypography.body)
+                          .copyWith(fontSize: 14.5),
                 ),
               ),
               if (selectedSupplierIsArchived) ...<Widget>[
@@ -1851,11 +1750,16 @@ class _SupplierPickerSheetState extends State<_SupplierPickerSheet> {
             child: InkWell(
               key: const ValueKey<String>('entry-supplier-clear-option'),
               onTap: () {
-                Navigator.of(context).pop(const _SupplierPickerResult.cleared());
+                Navigator.of(
+                  context,
+                ).pop(const _SupplierPickerResult.cleared());
               },
               borderRadius: BorderRadius.circular(AppRadius.lg),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 4,
+                ),
                 child: Row(
                   children: <Widget>[
                     const Icon(
@@ -1865,7 +1769,10 @@ class _SupplierPickerSheetState extends State<_SupplierPickerSheet> {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(strings.noSupplier, style: AppTypography.body),
+                      child: Text(
+                        strings.noSupplier,
+                        style: AppTypography.body,
+                      ),
                     ),
                   ],
                 ),
@@ -1884,7 +1791,10 @@ class _SupplierPickerSheetState extends State<_SupplierPickerSheet> {
               },
               borderRadius: BorderRadius.circular(AppRadius.lg),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 4,
+                ),
                 child: Row(
                   children: <Widget>[
                     const Icon(

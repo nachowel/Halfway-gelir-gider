@@ -513,7 +513,7 @@ class _SupplierEditorSheetState
               ),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
-                flex: 16,
+                flex: 2,
                 child: HiFiButton(
                   key: const ValueKey<String>('supplier-save-button'),
                   label: _isEditing ? strings.saveChanges : strings.save,

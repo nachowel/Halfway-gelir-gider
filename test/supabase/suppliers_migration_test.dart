@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -19,27 +20,26 @@ void main() {
         await cluster?.stop();
       });
 
-      test('clean DB applies supplier FK as nullable with ON DELETE SET NULL', () async {
-        const String databaseName = 'mig_clean_suppliers';
-        await cluster!.createDatabase(databaseName);
-        await cluster!.applyBootstrap(databaseName);
-        await cluster!.applyMigrations(
-          databaseName,
-          const <String>[
+      test(
+        'clean DB applies supplier FK as nullable with ON DELETE SET NULL',
+        () async {
+          const String databaseName = 'mig_clean_suppliers';
+          await cluster!.createDatabase(databaseName);
+          await cluster!.applyBootstrap(databaseName);
+          await cluster!.applyMigrations(databaseName, const <String>[
             'supabase/migrations/001_initial_schema.sql',
             'supabase/migrations/002_rls_policies.sql',
             'supabase/migrations/003_mark_recurring_paid.sql',
             'supabase/migrations/004_harden_auth_signup_bootstrap.sql',
             'supabase/migrations/005_suppliers.sql',
-          ],
-        );
+          ]);
 
-        await cluster!.sql(databaseName, '''
+          await cluster!.sql(databaseName, '''
 insert into auth.users (id, email)
 values ('11111111-1111-4111-8111-111111111111', 'owner@example.com');
 
 insert into public.categories (id, user_id, type, name)
-values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'expense', 'Rent');
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '11111111-1111-4111-8111-111111111111', 'expense', 'Test Rent');
 
 insert into public.suppliers (id, user_id, expense_category_id, name)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Acme Ltd');
@@ -68,48 +68,41 @@ values (
 );
 ''');
 
-        expect(
-          await cluster!.scalar(
-            databaseName,
-            '''
+          expect(
+            await cluster!.scalar(databaseName, '''
 select is_nullable
 from information_schema.columns
 where table_schema = 'public'
   and table_name = 'transactions'
   and column_name = 'supplier_id';
-''',
-          ),
-          'YES',
-        );
-        expect(
-          await cluster!.scalar(
-            databaseName,
-            '''
+'''),
+            'YES',
+          );
+          expect(
+            await cluster!.scalar(databaseName, '''
 select pg_get_constraintdef(oid)
 from pg_constraint
 where conname = 'transactions_supplier_id_fkey';
-''',
-          ),
-          contains('ON DELETE SET NULL'),
-        );
+'''),
+            contains('ON DELETE SET NULL'),
+          );
 
-        await cluster!.sql(
-          databaseName,
-          "delete from public.suppliers where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';",
-        );
-
-        expect(
-          await cluster!.scalar(
+          await cluster!.sql(
             databaseName,
-            '''
+            "delete from public.suppliers where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';",
+          );
+
+          expect(
+            await cluster!.scalar(databaseName, '''
 select coalesce(supplier_id::text, 'NULL')
 from public.transactions
 where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-''',
-          ),
-          'NULL',
-        );
-      });
+'''),
+            'NULL',
+          );
+        },
+        timeout: const Timeout(Duration(minutes: 3)),
+      );
 
       test(
         'existing DB upgrades to supplier column without breaking old transactions',
@@ -117,22 +110,19 @@ where id = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
           const String databaseName = 'mig_existing_suppliers';
           await cluster!.createDatabase(databaseName);
           await cluster!.applyBootstrap(databaseName);
-          await cluster!.applyMigrations(
-            databaseName,
-            const <String>[
-              'supabase/migrations/001_initial_schema.sql',
-              'supabase/migrations/002_rls_policies.sql',
-              'supabase/migrations/003_mark_recurring_paid.sql',
-              'supabase/migrations/004_harden_auth_signup_bootstrap.sql',
-            ],
-          );
+          await cluster!.applyMigrations(databaseName, const <String>[
+            'supabase/migrations/001_initial_schema.sql',
+            'supabase/migrations/002_rls_policies.sql',
+            'supabase/migrations/003_mark_recurring_paid.sql',
+            'supabase/migrations/004_harden_auth_signup_bootstrap.sql',
+          ]);
 
           await cluster!.sql(databaseName, '''
 insert into auth.users (id, email)
 values ('21111111-1111-4111-8111-111111111111', 'legacy@example.com');
 
 insert into public.categories (id, user_id, type, name)
-values ('2aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '21111111-1111-4111-8111-111111111111', 'expense', 'Supplies');
+values ('2aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '21111111-1111-4111-8111-111111111111', 'expense', 'Test Supplies');
 
 insert into public.transactions (
   id,
@@ -156,47 +146,38 @@ values (
 );
 ''');
 
-          await cluster!.applyMigrations(
-            databaseName,
-            const <String>['supabase/migrations/005_suppliers.sql'],
-          );
+          await cluster!.applyMigrations(databaseName, const <String>[
+            'supabase/migrations/005_suppliers.sql',
+          ]);
 
           expect(
-            await cluster!.scalar(
-              databaseName,
-              '''
+            await cluster!.scalar(databaseName, '''
 select is_nullable
 from information_schema.columns
 where table_schema = 'public'
   and table_name = 'transactions'
   and column_name = 'supplier_id';
-''',
-            ),
+'''),
             'YES',
           );
           expect(
-            await cluster!.scalar(
-              databaseName,
-              '''
+            await cluster!.scalar(databaseName, '''
 select coalesce(supplier_id::text, 'NULL')
 from public.transactions
 where id = '2ccccccc-cccc-4ccc-8ccc-cccccccccccc';
-''',
-            ),
+'''),
             'NULL',
           );
           expect(
-            await cluster!.scalar(
-              databaseName,
-              '''
+            await cluster!.scalar(databaseName, '''
 select vendor
 from public.transactions
 where id = '2ccccccc-cccc-4ccc-8ccc-cccccccccccc';
-''',
-            ),
+'''),
             'Legacy Vendor',
           );
         },
+        timeout: const Timeout(Duration(minutes: 3)),
       );
 
       test(
@@ -205,16 +186,13 @@ where id = '2ccccccc-cccc-4ccc-8ccc-cccccccccccc';
           const String databaseName = 'mig_supplier_constraints';
           await cluster!.createDatabase(databaseName);
           await cluster!.applyBootstrap(databaseName);
-          await cluster!.applyMigrations(
-            databaseName,
-            const <String>[
-              'supabase/migrations/001_initial_schema.sql',
-              'supabase/migrations/002_rls_policies.sql',
-              'supabase/migrations/003_mark_recurring_paid.sql',
-              'supabase/migrations/004_harden_auth_signup_bootstrap.sql',
-              'supabase/migrations/005_suppliers.sql',
-            ],
-          );
+          await cluster!.applyMigrations(databaseName, const <String>[
+            'supabase/migrations/001_initial_schema.sql',
+            'supabase/migrations/002_rls_policies.sql',
+            'supabase/migrations/003_mark_recurring_paid.sql',
+            'supabase/migrations/004_harden_auth_signup_bootstrap.sql',
+            'supabase/migrations/005_suppliers.sql',
+          ]);
 
           await cluster!.sql(databaseName, '''
 insert into auth.users (id, email)
@@ -224,9 +202,9 @@ values
 
 insert into public.categories (id, user_id, type, name)
 values
-  ('3aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '31111111-1111-4111-8111-111111111111', 'expense', 'Rent'),
-  ('3fffffff-ffff-4fff-8fff-ffffffffffff', '31111111-1111-4111-8111-111111111111', 'expense', 'Supplies'),
-  ('3bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '31111111-1111-4111-8111-111111111111', 'income', 'Card Sales'),
+  ('3aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '31111111-1111-4111-8111-111111111111', 'expense', 'Test Rent'),
+  ('3fffffff-ffff-4fff-8fff-ffffffffffff', '31111111-1111-4111-8111-111111111111', 'expense', 'Test Supplies'),
+  ('3bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '31111111-1111-4111-8111-111111111111', 'income', 'Test Card Sales'),
   ('3ddddddd-dddd-4ddd-8ddd-dddddddddddd', '32222222-2222-4222-8222-222222222222', 'expense', 'Fuel');
 
 insert into public.suppliers (id, user_id, expense_category_id, name)
@@ -243,14 +221,10 @@ insert into public.suppliers (id, user_id, expense_category_id, name)
 values ('39999999-9999-4999-8999-999999999999', '32222222-2222-4222-8222-222222222222', '3ddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Other User Fuel');
 ''');
 
-          await cluster!.expectFailure(
-            databaseName,
-            '''
+          await cluster!.expectFailure(databaseName, '''
 insert into public.suppliers (user_id, expense_category_id, name)
 values ('31111111-1111-4111-8111-111111111111', '3bbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Income Supplier');
-''',
-            contains('Supplier must reference an expense category'),
-          );
+''', contains('Supplier must reference an expense category'));
 
           await cluster!.expectFailure(
             databaseName,
@@ -308,12 +282,12 @@ values (
   '39999999-9999-4999-8999-999999999999'
 );
 ''',
-            contains('Supplier does not belong to the same user as transaction'),
+            contains(
+              'Supplier does not belong to the same user as transaction',
+            ),
           );
 
-          await cluster!.expectFailure(
-            databaseName,
-            '''
+          await cluster!.expectFailure(databaseName, '''
 insert into public.transactions (
   user_id,
   type,
@@ -332,24 +306,20 @@ values (
   'card',
   '3eeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 );
-''',
-            contains('Supplier category'),
-          );
+''', contains('Supplier category'));
 
           expect(
-            await cluster!.scalar(
-              databaseName,
-              '''
+            await cluster!.scalar(databaseName, '''
 select count(*)
 from public.suppliers
 where user_id = '31111111-1111-4111-8111-111111111111'
   and expense_category_id = '3aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
   and lower(name) = lower('Acme Ltd');
-''',
-            ),
+'''),
             '2',
           );
         },
+        timeout: const Timeout(Duration(minutes: 3)),
       );
     },
   );
@@ -412,6 +382,7 @@ class _TempPostgresCluster {
   final Directory _rootDir;
   final Directory _dataDir;
   final int port;
+  static const Duration _processTimeout = Duration(seconds: 60);
 
   static Future<_TempPostgresCluster> start(_PostgresTools tools) async {
     final Directory rootDir = await Directory.systemTemp.createTemp(
@@ -420,7 +391,7 @@ class _TempPostgresCluster {
     final Directory dataDir = Directory(
       '${rootDir.path}${Platform.pathSeparator}data',
     );
-    final int port = 55432 + (DateTime.now().millisecondsSinceEpoch % 1000);
+    final int port = await _allocatePort();
     final _TempPostgresCluster cluster = _TempPostgresCluster._(
       tools: tools,
       rootDir: rootDir,
@@ -428,44 +399,45 @@ class _TempPostgresCluster {
       port: port,
     );
 
-    await cluster._run(
-      tools.initdb,
-      <String>[
-        '-A',
-        'trust',
-        '-U',
-        'postgres',
-        '-D',
-        dataDir.path,
-      ],
-    );
-    await cluster._run(
-      tools.pgCtl,
-      <String>[
-        '-D',
-        dataDir.path,
-        '-o',
-        '-F -h 127.0.0.1 -p $port',
-        '-w',
-        'start',
-      ],
-    );
+    await cluster._run(tools.initdb, <String>[
+      '-A',
+      'trust',
+      '-U',
+      'postgres',
+      '-D',
+      dataDir.path,
+    ]);
+    await cluster._run(tools.pgCtl, <String>[
+      '-D',
+      dataDir.path,
+      '-o',
+      '-F -h 127.0.0.1 -p $port',
+      '-w',
+      'start',
+    ]);
     return cluster;
+  }
+
+  static Future<int> _allocatePort() async {
+    final ServerSocket socket = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final int port = socket.port;
+    await socket.close();
+    return port;
   }
 
   Future<void> stop() async {
     try {
-      await _run(
-        _tools.pgCtl,
-        <String>[
-          '-D',
-          _dataDir.path,
-          '-m',
-          'immediate',
-          '-w',
-          'stop',
-        ],
-      );
+      await _run(_tools.pgCtl, <String>[
+        '-D',
+        _dataDir.path,
+        '-m',
+        'immediate',
+        '-w',
+        'stop',
+      ]);
     } finally {
       if (_rootDir.existsSync()) {
         await _rootDir.delete(recursive: true);
@@ -502,66 +474,57 @@ create table if not exists auth.users (
     List<String> relativePaths,
   ) async {
     for (final String relativePath in relativePaths) {
-      await _run(
-        _tools.psql,
-        <String>[
-          '-h',
-          '127.0.0.1',
-          '-p',
-          '$port',
-          '-U',
-          'postgres',
-          '-d',
-          databaseName,
-          '-v',
-          'ON_ERROR_STOP=1',
-          '-f',
-          File(relativePath).absolute.path,
-        ],
-      );
+      await _run(_tools.psql, <String>[
+        '-h',
+        '127.0.0.1',
+        '-p',
+        '$port',
+        '-U',
+        'postgres',
+        '-d',
+        databaseName,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-f',
+        File(relativePath).absolute.path,
+      ]);
     }
   }
 
   Future<void> sql(String databaseName, String sql) async {
-    await _run(
-      _tools.psql,
-      <String>[
-        '-h',
-        '127.0.0.1',
-        '-p',
-        '$port',
-        '-U',
-        'postgres',
-        '-d',
-        databaseName,
-        '-v',
-        'ON_ERROR_STOP=1',
-        '-c',
-        sql,
-      ],
-    );
+    await _run(_tools.psql, <String>[
+      '-h',
+      '127.0.0.1',
+      '-p',
+      '$port',
+      '-U',
+      'postgres',
+      '-d',
+      databaseName,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      sql,
+    ]);
   }
 
   Future<String> scalar(String databaseName, String sql) async {
-    final ProcessResult result = await _run(
-      _tools.psql,
-      <String>[
-        '-h',
-        '127.0.0.1',
-        '-p',
-        '$port',
-        '-U',
-        'postgres',
-        '-d',
-        databaseName,
-        '-v',
-        'ON_ERROR_STOP=1',
-        '-t',
-        '-A',
-        '-c',
-        sql,
-      ],
-    );
+    final ProcessResult result = await _run(_tools.psql, <String>[
+      '-h',
+      '127.0.0.1',
+      '-p',
+      '$port',
+      '-U',
+      'postgres',
+      '-d',
+      databaseName,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-t',
+      '-A',
+      '-c',
+      sql,
+    ]);
     return (result.stdout as String).trim();
   }
 
@@ -570,32 +533,26 @@ create table if not exists auth.users (
     String sql,
     Matcher stderrMatcher,
   ) async {
-    final ProcessResult result = await Process.run(
-      _tools.psql,
-      <String>[
-        '-h',
-        '127.0.0.1',
-        '-p',
-        '$port',
-        '-U',
-        'postgres',
-        '-d',
-        databaseName,
-        '-v',
-        'ON_ERROR_STOP=1',
-        '-c',
-        sql,
-      ],
-    );
+    final ProcessResult result = await _runRaw(_tools.psql, <String>[
+      '-h',
+      '127.0.0.1',
+      '-p',
+      '$port',
+      '-U',
+      'postgres',
+      '-d',
+      databaseName,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      sql,
+    ]);
     expect(result.exitCode, isNot(0));
     expect('${result.stderr}', stderrMatcher);
   }
 
   Future<ProcessResult> _run(String command, List<String> arguments) async {
-    final ProcessResult result = await Process.run(
-      command,
-      arguments,
-    );
+    final ProcessResult result = await _runRaw(command, arguments);
     if (result.exitCode != 0) {
       throw StateError(
         'Command failed: $command ${arguments.join(' ')}\n'
@@ -604,5 +561,48 @@ create table if not exists auth.users (
       );
     }
     return result;
+  }
+
+  Future<ProcessResult> _runRaw(String command, List<String> arguments) async {
+    final Process process = await Process.start(command, arguments);
+    final StringBuffer stdoutBuffer = StringBuffer();
+    final StringBuffer stderrBuffer = StringBuffer();
+    final StreamSubscription<String> stdoutSubscription = process.stdout
+        .transform(systemEncoding.decoder)
+        .listen(stdoutBuffer.write);
+    final StreamSubscription<String> stderrSubscription = process.stderr
+        .transform(systemEncoding.decoder)
+        .listen(stderrBuffer.write);
+
+    try {
+      final int exitCode = await process.exitCode.timeout(_processTimeout);
+      try {
+        await Future.wait(<Future<void>>[
+          stdoutSubscription.asFuture<void>(),
+          stderrSubscription.asFuture<void>(),
+        ]).timeout(const Duration(seconds: 5));
+      } on TimeoutException {
+        // On Windows, pg_ctl can start postgres with inherited stdio handles.
+        // pg_ctl has exited, but the child server keeps the pipe open.
+        await stdoutSubscription.cancel();
+        await stderrSubscription.cancel();
+      }
+      return ProcessResult(
+        process.pid,
+        exitCode,
+        stdoutBuffer.toString(),
+        stderrBuffer.toString(),
+      );
+    } on TimeoutException {
+      process.kill();
+      await stdoutSubscription.cancel();
+      await stderrSubscription.cancel();
+      throw StateError(
+        'Command timed out after $_processTimeout: '
+        '$command ${arguments.join(' ')}\n'
+        'stdout:\n$stdoutBuffer\n'
+        'stderr:\n$stderrBuffer',
+      );
+    }
   }
 }

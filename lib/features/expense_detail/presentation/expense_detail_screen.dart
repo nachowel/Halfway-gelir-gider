@@ -40,7 +40,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations strings = context.strings;
-    final DateTime today = DateTime.now();
+    final DateTime today = ref.watch(currentDateTimeProvider);
     final ExpenseDetailRange previewRange = _service.resolveRange(
       today: today,
       query: _query,
@@ -123,7 +123,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
 
   Future<void> _handlePresetSelected(ExpenseDetailRangePreset preset) async {
     if (preset == ExpenseDetailRangePreset.custom) {
-      final DateTime now = DateTime.now();
+      final DateTime now = ref.read(currentDateTimeProvider);
       final ExpenseDetailRange currentRange = _service.resolveRange(
         today: now,
         query: _query,

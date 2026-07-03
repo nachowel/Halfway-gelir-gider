@@ -14,6 +14,7 @@ final class TransactionModel {
     required this.note,
     required this.vendor,
     required this.supplierId,
+    required this.staffName,
     required this.attachmentPath,
     required this.recurringExpenseId,
   });
@@ -30,6 +31,7 @@ final class TransactionModel {
   final String? note;
   final String? vendor;
   final String? supplierId;
+  final String? staffName;
   final String? attachmentPath;
   final String? recurringExpenseId;
 
@@ -46,6 +48,7 @@ final class TransactionModel {
     String? note,
     String? vendor,
     String? supplierId,
+    String? staffName,
     String? attachmentPath,
     String? recurringExpenseId,
   }) {
@@ -88,6 +91,7 @@ final class TransactionModel {
       note: normalizeOptionalText(note, 'transaction_note'),
       vendor: normalizeOptionalText(vendor, 'transaction_vendor'),
       supplierId: normalizedSupplierId,
+      staffName: normalizeOptionalText(staffName, 'transaction_staff_name'),
       attachmentPath: normalizeOptionalText(
         attachmentPath,
         'transaction_attachment_path',

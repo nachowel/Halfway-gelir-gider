@@ -16,6 +16,7 @@ import '../features/income_detail/domain/income_detail_models.dart';
 import '../features/income_detail/domain/income_detail_service.dart';
 import '../features/net_profit_detail/domain/net_profit_detail_models.dart';
 import '../features/net_profit_detail/domain/net_profit_detail_service.dart';
+import '../features/reports/domain/payee_analytics_models.dart';
 import '../l10n/app_localizations.dart';
 import 'local/outbox_repository.dart';
 import 'sync/conflict_policy.dart';
@@ -52,6 +53,10 @@ class GiderRepository {
       'supplier_id, created_at, category:categories(id, name, type)';
   static const String _transactionSelectWithSupplier =
       '$_transactionSelectBase, supplier:suppliers(id, name)';
+  static const String _transactionSelectWithStaff =
+      '$_transactionSelectWithSupplier, staff_name';
+  static const String _transactionSelectBaseWithStaff =
+      '$_transactionSelectBase, staff_name';
   static final ExpenseDetailService _expenseDetailService =
       ExpenseDetailService();
   static final IncomeDetailService _incomeDetailService = IncomeDetailService();
@@ -582,14 +587,35 @@ class GiderRepository {
           .from('transactions')
           .select(
             includeSupplier
-                ? _transactionSelectWithSupplier
-                : _transactionSelectBase,
+                ? _transactionSelectWithStaff
+                : _transactionSelectBaseWithStaff,
           )
           .eq('id', id)
           .eq('user_id', _user.id)
           .isFilter('deleted_at', null)
           .maybeSingle();
     } on PostgrestException catch (error) {
+      if (_isMissingStaffNameColumnError(error)) {
+        try {
+          return await _client
+              .from('transactions')
+              .select(
+                includeSupplier
+                    ? _transactionSelectWithSupplier
+                    : _transactionSelectBase,
+              )
+              .eq('id', id)
+              .eq('user_id', _user.id)
+              .isFilter('deleted_at', null)
+              .maybeSingle();
+        } on PostgrestException catch (inner) {
+          if (includeSupplier &&
+              _isMissingSupplierRelationError(inner)) {
+            return _fetchTransactionRow(id: id, includeSupplier: false);
+          }
+          rethrow;
+        }
+      }
       if (includeSupplier && _isMissingSupplierRelationError(error)) {
         return _fetchTransactionRow(id: id, includeSupplier: false);
       }
@@ -598,6 +624,76 @@ class GiderRepository {
   }
 
   Future<List<dynamic>> _fetchTransactionRows({
+    required bool includeSupplier,
+    TransactionType? type,
+    PaymentMethodType? paymentMethod,
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      var query = _client
+          .from('transactions')
+          .select(
+            includeSupplier
+                ? _transactionSelectWithStaff
+                : _transactionSelectBaseWithStaff,
+          )
+          .eq('user_id', _user.id)
+          .isFilter('deleted_at', null);
+
+      if (type != null) {
+        query = query.eq('type', type.dbValue);
+      }
+      if (paymentMethod != null) {
+        query = query.eq('payment_method', paymentMethod.dbValue);
+      }
+      if (start != null) {
+        query = query.gte('occurred_on', _isoDate(start));
+      }
+      if (end != null) {
+        query = query.lte('occurred_on', _isoDate(end));
+      }
+
+      return await query
+          .order('occurred_on', ascending: false)
+          .order('created_at', ascending: false);
+    } on PostgrestException catch (error) {
+      if (_isMissingStaffNameColumnError(error)) {
+        try {
+          return await _fetchTransactionRowsWithoutStaff(
+            includeSupplier: includeSupplier,
+            type: type,
+            paymentMethod: paymentMethod,
+            start: start,
+            end: end,
+          );
+        } on PostgrestException catch (inner) {
+          if (includeSupplier && _isMissingSupplierRelationError(inner)) {
+            return _fetchTransactionRowsWithoutStaff(
+              includeSupplier: false,
+              type: type,
+              paymentMethod: paymentMethod,
+              start: start,
+              end: end,
+            );
+          }
+          rethrow;
+        }
+      }
+      if (includeSupplier && _isMissingSupplierRelationError(error)) {
+        return _fetchTransactionRowsWithoutStaff(
+          includeSupplier: false,
+          type: type,
+          paymentMethod: paymentMethod,
+          start: start,
+          end: end,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<dynamic>> _fetchTransactionRowsWithoutStaff({
     required bool includeSupplier,
     TransactionType? type,
     PaymentMethodType? paymentMethod,
@@ -633,7 +729,7 @@ class GiderRepository {
           .order('created_at', ascending: false);
     } on PostgrestException catch (error) {
       if (includeSupplier && _isMissingSupplierRelationError(error)) {
-        return _fetchTransactionRows(
+        return _fetchTransactionRowsWithoutStaff(
           includeSupplier: false,
           type: type,
           paymentMethod: paymentMethod,
@@ -661,6 +757,23 @@ class GiderRepository {
         code == 'pgrst200' ||
         code == 'pgrst201' ||
         code == 'pgrst204';
+  }
+
+  bool _isMissingStaffNameColumnError(PostgrestException error) {
+    final String message = error.message.toLowerCase();
+    final String details = '${error.details ?? ''}'.toLowerCase();
+    final String code = (error.code ?? '').toLowerCase();
+    final bool mentionsStaffName =
+        (message.contains('staff_name') || details.contains('staff_name')) &&
+        (message.contains('column') ||
+            details.contains('column') ||
+            message.contains('schema cache') ||
+            details.contains('schema cache') ||
+            code == 'pgrst204' ||
+            code == 'pgrst200' ||
+            code == 'pgrst201' ||
+            code == '42703');
+    return mentionsStaffName;
   }
 
   Future<void> createTransaction(EntryDraft draft) async {
@@ -883,6 +996,35 @@ class GiderRepository {
       transactions: transactions,
       expenseCategoryIcons: expenseCategoryIcons,
       incomeCategoryIcons: incomeCategoryIcons,
+    );
+  }
+
+  Future<PayeeAnalyticsDataset> fetchPayeeAnalyticsDataset({
+    int lookbackYears = 2,
+  }) async {
+    final DateTime today = DateTime.now();
+    final DateTime earliest = DateTime(today.year - lookbackYears, 1, 1);
+    final List<TransactionData> transactions = await fetchTransactions(
+      start: earliest,
+      end: today,
+    );
+    final Map<String, IconData> expenseCategoryIcons = <String, IconData>{};
+    for (final TransactionData transaction in transactions) {
+      if (transaction.type != TransactionType.expense) {
+        continue;
+      }
+      final String categoryName = transaction.categoryName.trim();
+      if (categoryName.isEmpty) {
+        continue;
+      }
+      expenseCategoryIcons.putIfAbsent(
+        categoryName,
+        () => _iconForCategoryName(categoryName, CategoryType.expense),
+      );
+    }
+    return PayeeAnalyticsDataset(
+      transactions: transactions,
+      expenseCategoryIcons: expenseCategoryIcons,
     );
   }
 
@@ -1303,6 +1445,7 @@ class GiderRepository {
           sourcePlatform: row['source_platform'] as String?,
           note: row['note'] as String?,
           vendor: row['vendor'] as String?,
+          staffName: row['staff_name'] as String?,
           attachmentPath: row['attachment_path'] as String?,
           recurringExpenseId: row['recurring_expense_id'] as String?,
         );
@@ -1321,6 +1464,7 @@ class GiderRepository {
       vendor: transaction.vendor,
       supplierId: (row['supplier_id'] as String?) ?? supplier?['id'] as String?,
       supplierName: supplier?['name'] as String?,
+      staffName: transaction.staffName,
       attachmentPath: transaction.attachmentPath,
       recurringExpenseId: transaction.recurringExpenseId,
       createdAt: DateTime.parse(row['created_at'] as String),
@@ -1451,6 +1595,7 @@ class GiderRepository {
       note: draft.note,
       vendor: draft.vendor,
       supplierId: draft.supplierId,
+      staffName: draft.staffName,
       attachmentPath: draft.attachmentPath,
     );
   }
@@ -1476,6 +1621,7 @@ class GiderRepository {
         'note': transaction.note,
         'vendor': transaction.vendor,
         'supplier_id': transaction.supplierId,
+        'staff_name': transaction.staffName,
         'attachment_path': transaction.attachmentPath,
       });
 
@@ -1506,6 +1652,7 @@ class GiderRepository {
           'note': transaction.note,
           'vendor': transaction.vendor,
           'supplier_id': transaction.supplierId,
+          'staff_name': transaction.staffName,
           'attachment_path': transaction.attachmentPath,
         })
         .eq('id', transaction.id!)

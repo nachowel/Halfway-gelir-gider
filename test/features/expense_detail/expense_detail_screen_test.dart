@@ -533,6 +533,7 @@ void main() {
   Widget buildApp(ExpenseDetailViewModel viewModel) {
     return ProviderScope(
       overrides: <Override>[
+        currentDateTimeProvider.overrideWith((ref) => DateTime(2026, 4, 22)),
         expenseDetailProvider.overrideWith((ref, query) async => viewModel),
       ],
       child: MaterialApp(

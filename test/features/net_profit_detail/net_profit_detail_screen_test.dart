@@ -283,6 +283,7 @@ void main() {
   Widget buildApp(NetProfitDetailViewModel viewModel) {
     return ProviderScope(
       overrides: <Override>[
+        currentDateTimeProvider.overrideWith((ref) => DateTime(2026, 4, 22)),
         netProfitDetailProvider.overrideWith((ref, query) async => viewModel),
       ],
       child: buildLocalizedTestApp(home: const NetProfitDetailScreen()),

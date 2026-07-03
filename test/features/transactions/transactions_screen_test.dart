@@ -186,7 +186,8 @@ void main() {
     await tester.pumpWidget(buildTestApp(data: data));
     await tester.pumpAndSettle();
 
-    expect(find.text('Uber Eats payout'), findsOneWidget);
+    expect(find.text('Food sales'), findsOneWidget);
+    expect(find.textContaining('Uber Eats payout'), findsOneWidget);
     expect(find.text('Fuel'), findsWidgets);
     expect(find.byType(HiFiListRow), findsNWidgets(3));
     expect(find.text('£186.00'), findsWidgets);
@@ -322,7 +323,7 @@ void main() {
       'lunch',
     );
     await tester.pumpAndSettle();
-    expect(find.text('Uber Eats payout'), findsOneWidget);
+    expect(find.textContaining('Uber Eats payout'), findsOneWidget);
     expect(find.text('Fuel'), findsNothing);
 
     await tester.enterText(
@@ -331,14 +332,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Fuel'), findsWidgets);
-    expect(find.text('Uber Eats payout'), findsNothing);
+    expect(find.textContaining('Uber Eats payout'), findsNothing);
 
     await tester.enterText(
       find.byKey(const ValueKey<String>('transactions-search-field')),
       'uber',
     );
     await tester.pumpAndSettle();
-    expect(find.text('Uber Eats payout'), findsOneWidget);
+    expect(find.textContaining('Uber Eats payout'), findsOneWidget);
     expect(find.text('Fuel'), findsNothing);
   });
 
@@ -433,8 +434,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Fuel'), findsWidgets);
-    expect(find.text('Uber Eats payout'), findsNothing);
-    expect(find.text('Landlord'), findsNothing);
+    expect(find.textContaining('Uber Eats payout'), findsNothing);
+    expect(find.textContaining('Landlord'), findsNothing);
     expect(find.text('This month'), findsOneWidget);
     expect(find.text('Expense'), findsWidgets);
     expect(find.text('Cash'), findsWidgets);
@@ -442,8 +443,8 @@ void main() {
     await tester.tap(find.text('Clear all'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Uber Eats payout'), findsOneWidget);
-    expect(find.text('Landlord'), findsOneWidget);
+    expect(find.textContaining('Uber Eats payout'), findsOneWidget);
+    expect(find.textContaining('Landlord'), findsOneWidget);
   });
 
   testWidgets(
@@ -493,7 +494,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('ACTIVE'), findsNothing);
-      expect(find.text('Uber Eats payout'), findsOneWidget);
+      expect(find.textContaining('Uber Eats payout'), findsOneWidget);
       expect(find.text('Fuel'), findsWidgets);
       expect(tester.takeException(), isNull);
     },
@@ -532,8 +533,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Landlord'), findsOneWidget);
-    expect(find.text('Uber Eats payout'), findsNothing);
+    expect(find.textContaining('Landlord'), findsOneWidget);
+    expect(find.textContaining('Uber Eats payout'), findsNothing);
     expect(find.text('Fuel'), findsNothing);
     expect(find.text('Search: rent'), findsOneWidget);
   });

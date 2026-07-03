@@ -14,6 +14,7 @@ import '../../../shared/hi_fi/hi_fi_card.dart';
 import '../../../shared/hi_fi/hi_fi_pill.dart';
 import '../../../shared/hi_fi/hi_fi_section_header.dart';
 import '../../../shared/overlay/app_overlay.dart';
+import 'payee_analytics_section.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
@@ -90,6 +91,8 @@ class ReportsScreen extends ConsumerWidget {
               items: report.supplierBreakdownRows,
               selectedMonth: report.selectedMonth,
             ),
+          const SizedBox(height: AppSpacing.lg),
+          const PayeeAnalyticsSection(),
           const SizedBox(height: AppSpacing.lg),
           HiFiSectionHeader.eye(left: strings.monthlyTrend),
           const SizedBox(height: AppSpacing.sm),

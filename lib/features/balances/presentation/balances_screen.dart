@@ -268,6 +268,82 @@ class BalanceAccountDetailScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _deleteAccount(
+    BuildContext context,
+    WidgetRef ref,
+    BalanceAccountData account,
+  ) async {
+    if (account.remainingMinor != 0) {
+      _showErrorSnack(context, context.strings.balanceDeleteRequiresZero);
+      return;
+    }
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        final AppLocalizations strings = dialogContext.strings;
+        return AlertDialog(
+          title: Text(strings.deleteBalanceAccount),
+          content: Text(strings.deleteBalanceAccountConfirmMessage),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(strings.cancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(strings.delete),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await ref.read(balancesRepositoryProvider).deleteAccount(account.id);
+      ref.read(refreshKeyProvider.notifier).state++;
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.income,
+          content: Text(context.strings.deleted),
+        ),
+      );
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/settings/balances');
+      }
+    } on DomainValidationException catch (error) {
+      if (!context.mounted) return;
+      _showErrorSnack(
+        context,
+        _localizedBalanceError(
+          context.strings,
+          error,
+          fallback: context.strings.balanceDeleteAccountFailed,
+        ),
+      );
+    } on AuthException catch (error) {
+      if (!context.mounted) return;
+      _showErrorSnack(context, _localizedBalanceError(context.strings, error));
+    } catch (error) {
+      if (!context.mounted) return;
+      _showErrorSnack(
+        context,
+        _localizedBalanceError(
+          context.strings,
+          error,
+          fallback: context.strings.balanceDeleteAccountFailed,
+        ),
+      );
+    }
+  }
+
   Future<void> _deleteMovement(
     BuildContext context,
     WidgetRef ref,
@@ -432,6 +508,12 @@ class BalanceAccountDetailScreen extends ConsumerWidget {
                 onPressed: () => _closeAccount(context, ref, account),
               ),
             ],
+            const SizedBox(height: AppSpacing.xs),
+            HiFiButton(
+              label: strings.deleteBalanceAccount,
+              variant: HiFiButtonVariant.expense,
+              onPressed: () => _deleteAccount(context, ref, account),
+            ),
             const SizedBox(height: AppSpacing.md),
             Text(strings.balanceMovementHistory, style: AppTypography.lbl),
             const SizedBox(height: AppSpacing.xs),
@@ -1833,6 +1915,7 @@ String _localizedBalanceError(
   if (error is DomainValidationException) {
     return switch (error.code) {
       'balance.close_requires_zero' => strings.balanceCannotCloseNonZero,
+      'balance.delete_requires_zero' => strings.balanceDeleteRequiresZero,
       'balance.account_not_found' => strings.balanceAccountMissing,
       'balance.movement_not_found' => strings.balanceMovementMissing,
       'balance.remaining_negative' => strings.balanceRemainingCannotBeNegative,
