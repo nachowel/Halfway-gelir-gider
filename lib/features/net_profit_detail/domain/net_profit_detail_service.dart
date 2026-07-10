@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:intl/intl.dart';
 
+import '../../../data/app_models.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../transactions/domain/transaction_subtitle.dart';
 import 'net_profit_detail_models.dart';
 
 class NetProfitDetailService {
@@ -102,20 +104,63 @@ class NetProfitDetailService {
               range.start.year,
               range.start.month,
               range.start.day + offset,
-            ): const _DailyAccumulator(),
+            ): _DailyAccumulator(),
         };
+    final Map<String, int> incomePaymentTotals = <String, int>{};
+    final Map<String, int> expensePaymentTotals = <String, int>{};
+    final Map<String, _ExpenseCategoryAccumulator> expenseCategories =
+        <String, _ExpenseCategoryAccumulator>{};
+    final Map<String, _IncomeSourceAccumulator> incomeSources =
+        <String, _IncomeSourceAccumulator>{};
 
     for (final NetProfitDetailTransaction transaction in transactions) {
       final DateTime day = _atStartOfDay(transaction.occurredOn);
-      final _DailyAccumulator current = byDay[day] ?? const _DailyAccumulator();
-      byDay[day] = switch (transaction.type) {
-        NetProfitTransactionType.income => current.copyWith(
-          incomeMinor: current.incomeMinor + transaction.amountMinor,
-        ),
-        NetProfitTransactionType.expense => current.copyWith(
-          expenseMinor: current.expenseMinor + transaction.amountMinor,
-        ),
-      };
+      final _DailyAccumulator? current = byDay[day];
+      if (current == null) {
+        continue;
+      }
+
+      final NetProfitTransactionRow row = _buildTransactionRow(
+        transaction,
+        strings,
+      );
+      switch (transaction.type) {
+        case NetProfitTransactionType.income:
+          current.incomeMinor += transaction.amountMinor;
+          if (transaction.paymentMethod == PaymentMethodType.cash) {
+            current.cashIncomeMinor += transaction.amountMinor;
+          } else if (transaction.paymentMethod == PaymentMethodType.card) {
+            current.cardIncomeMinor += transaction.amountMinor;
+          }
+          current.incomeTransactions.add(row);
+
+          final String paymentLabel = _incomePaymentLabel(transaction, strings);
+          incomePaymentTotals[paymentLabel] =
+              (incomePaymentTotals[paymentLabel] ?? 0) +
+              transaction.amountMinor;
+          final String sourceLabel = _incomeSourceLabel(transaction, strings);
+          incomeSources
+              .putIfAbsent(
+                sourceLabel,
+                () => _IncomeSourceAccumulator(sourceLabel),
+              )
+              .add(day, transaction.amountMinor);
+        case NetProfitTransactionType.expense:
+          current.expenseMinor += transaction.amountMinor;
+          current.expenseTransactions.add(row);
+
+          final String paymentLabel =
+              '${strings.paymentMethodLabel(transaction.paymentMethod)} expenses';
+          expensePaymentTotals[paymentLabel] =
+              (expensePaymentTotals[paymentLabel] ?? 0) +
+              transaction.amountMinor;
+          expenseCategories
+              .putIfAbsent(
+                transaction.categoryName,
+                () => _ExpenseCategoryAccumulator(transaction.categoryName),
+              )
+              .add(row);
+      }
     }
 
     final List<NetProfitChartPoint> dailyProfitSeries = <NetProfitChartPoint>[
@@ -136,6 +181,24 @@ class NetProfitDetailService {
           ),
         )
         .toList();
+    final List<NetProfitDailyBreakdown> dailyBreakdowns =
+        <NetProfitDailyBreakdown>[
+          for (final MapEntry<DateTime, _DailyAccumulator> entry
+              in byDay.entries)
+            NetProfitDailyBreakdown(
+              date: entry.key,
+              incomeMinor: entry.value.incomeMinor,
+              expenseMinor: entry.value.expenseMinor,
+              cashIncomeMinor: entry.value.cashIncomeMinor,
+              cardIncomeMinor: entry.value.cardIncomeMinor,
+              incomeTransactions: List<NetProfitTransactionRow>.unmodifiable(
+                entry.value.incomeTransactions,
+              ),
+              expenseTransactions: List<NetProfitTransactionRow>.unmodifiable(
+                entry.value.expenseTransactions,
+              ),
+            ),
+        ];
 
     final int incomeMinor = dailyProfitSeries.fold<int>(
       0,
@@ -184,6 +247,31 @@ class NetProfitDetailService {
       ),
       dailyProfitSeries: dailyProfitSeries,
       breakdownRows: breakdownRows,
+      incomePaymentBreakdowns:
+          _orderedPaymentBreakdowns(incomePaymentTotals, <String>[
+            strings.paymentMethodLabel(PaymentMethodType.cash),
+            strings.paymentMethodLabel(PaymentMethodType.card),
+            strings.sourcePlatformLabel(SourcePlatformType.uber),
+            strings.sourcePlatformLabel(SourcePlatformType.justEat),
+            strings.paymentMethodLabel(PaymentMethodType.other),
+          ]),
+      expensePaymentBreakdowns: _orderedPaymentBreakdowns(expensePaymentTotals, <
+        String
+      >[
+        '${strings.paymentMethodLabel(PaymentMethodType.cash)} expenses',
+        '${strings.paymentMethodLabel(PaymentMethodType.card)} expenses',
+        '${strings.paymentMethodLabel(PaymentMethodType.bankTransfer)} expenses',
+        '${strings.paymentMethodLabel(PaymentMethodType.other)} expenses',
+      ]),
+      dailyBreakdowns: dailyBreakdowns,
+      expenseCategoryBreakdowns: _expenseCategoryBreakdowns(expenseCategories),
+      incomeSourceBreakdowns: _incomeSourceBreakdowns(incomeSources, <String>[
+        'Cash Sales',
+        'Card Sales',
+        strings.sourcePlatformLabel(SourcePlatformType.uber),
+        strings.sourcePlatformLabel(SourcePlatformType.justEat),
+        strings.paymentMethodLabel(PaymentMethodType.other),
+      ]),
       kpis: _buildKpis(
         netProfitMinor: netProfitMinor,
         incomeMinor: incomeMinor,
@@ -204,6 +292,157 @@ class NetProfitDetailService {
       isEmpty: incomeMinor == 0 && expenseMinor == 0,
       hasDisabledChartState: incomeMinor == 0 && expenseMinor == 0,
     );
+  }
+
+  List<NetProfitPaymentBreakdown> _orderedPaymentBreakdowns(
+    Map<String, int> totals,
+    List<String> order,
+  ) {
+    final List<NetProfitPaymentBreakdown> rows = <NetProfitPaymentBreakdown>[
+      for (final String label in order)
+        if ((totals[label] ?? 0) > 0)
+          NetProfitPaymentBreakdown(label: label, amountMinor: totals[label]!),
+    ];
+    final Set<String> orderedLabels = order.toSet();
+    final List<MapEntry<String, int>> extras =
+        totals.entries.where((MapEntry<String, int> entry) {
+          return entry.value > 0 && !orderedLabels.contains(entry.key);
+        }).toList()..sort((MapEntry<String, int> a, MapEntry<String, int> b) {
+          final int amount = b.value.compareTo(a.value);
+          if (amount != 0) return amount;
+          return a.key.compareTo(b.key);
+        });
+    rows.addAll(
+      extras.map(
+        (MapEntry<String, int> entry) => NetProfitPaymentBreakdown(
+          label: entry.key,
+          amountMinor: entry.value,
+        ),
+      ),
+    );
+    return rows;
+  }
+
+  List<NetProfitExpenseCategoryBreakdown> _expenseCategoryBreakdowns(
+    Map<String, _ExpenseCategoryAccumulator> categories,
+  ) {
+    final List<_ExpenseCategoryAccumulator> values = categories.values.toList()
+      ..sort((_ExpenseCategoryAccumulator a, _ExpenseCategoryAccumulator b) {
+        final int amount = b.amountMinor.compareTo(a.amountMinor);
+        if (amount != 0) return amount;
+        return a.categoryName.compareTo(b.categoryName);
+      });
+    return <NetProfitExpenseCategoryBreakdown>[
+      for (final _ExpenseCategoryAccumulator value in values)
+        NetProfitExpenseCategoryBreakdown(
+          categoryName: value.categoryName,
+          amountMinor: value.amountMinor,
+          transactions: List<NetProfitTransactionRow>.unmodifiable(
+            value.transactions,
+          ),
+        ),
+    ];
+  }
+
+  List<NetProfitIncomeSourceBreakdown> _incomeSourceBreakdowns(
+    Map<String, _IncomeSourceAccumulator> sources,
+    List<String> order,
+  ) {
+    final List<_IncomeSourceAccumulator> values = sources.values.toList()
+      ..sort((_IncomeSourceAccumulator a, _IncomeSourceAccumulator b) {
+        final int aOrder = order.indexOf(a.label);
+        final int bOrder = order.indexOf(b.label);
+        if (aOrder != -1 || bOrder != -1) {
+          return (aOrder == -1 ? order.length : aOrder).compareTo(
+            bOrder == -1 ? order.length : bOrder,
+          );
+        }
+        return a.label.compareTo(b.label);
+      });
+    return <NetProfitIncomeSourceBreakdown>[
+      for (final _IncomeSourceAccumulator value in values)
+        NetProfitIncomeSourceBreakdown(
+          label: value.label,
+          amountMinor: value.amountMinor,
+          days: value.orderedDays,
+        ),
+    ];
+  }
+
+  NetProfitTransactionRow _buildTransactionRow(
+    NetProfitDetailTransaction transaction,
+    AppLocalizations strings,
+  ) {
+    final TransactionData data = TransactionData(
+      id: '',
+      type: transaction.type == NetProfitTransactionType.income
+          ? TransactionType.income
+          : TransactionType.expense,
+      occurredOn: transaction.occurredOn,
+      amountMinor: transaction.amountMinor,
+      categoryId: '',
+      categoryName: transaction.categoryName,
+      paymentMethod: transaction.paymentMethod,
+      createdAt: transaction.occurredOn,
+      sourcePlatform: transaction.sourcePlatform,
+      note: transaction.note,
+      vendor: transaction.vendor,
+      supplierId: transaction.supplierId,
+      supplierName: transaction.supplierName,
+      staffName: transaction.staffName,
+    );
+    return NetProfitTransactionRow(
+      date: _atStartOfDay(transaction.occurredOn),
+      title: buildTransactionTitle(data),
+      subtitle: buildTransactionSubtitle(
+        transaction: data,
+        paymentLabel: strings.paymentMethodLabel,
+        sourcePlatformLabel: strings.sourcePlatformLabel,
+      ),
+      amountMinor: transaction.amountMinor,
+      paymentMethod: transaction.paymentMethod,
+    );
+  }
+
+  String _incomePaymentLabel(
+    NetProfitDetailTransaction transaction,
+    AppLocalizations strings,
+  ) {
+    return switch (transaction.sourcePlatform) {
+      SourcePlatformType.uber => strings.sourcePlatformLabel(
+        SourcePlatformType.uber,
+      ),
+      SourcePlatformType.justEat => strings.sourcePlatformLabel(
+        SourcePlatformType.justEat,
+      ),
+      _ => switch (transaction.paymentMethod) {
+        PaymentMethodType.cash => strings.paymentMethodLabel(
+          PaymentMethodType.cash,
+        ),
+        PaymentMethodType.card => strings.paymentMethodLabel(
+          PaymentMethodType.card,
+        ),
+        _ => strings.paymentMethodLabel(PaymentMethodType.other),
+      },
+    };
+  }
+
+  String _incomeSourceLabel(
+    NetProfitDetailTransaction transaction,
+    AppLocalizations strings,
+  ) {
+    return switch (transaction.sourcePlatform) {
+      SourcePlatformType.uber => strings.sourcePlatformLabel(
+        SourcePlatformType.uber,
+      ),
+      SourcePlatformType.justEat => strings.sourcePlatformLabel(
+        SourcePlatformType.justEat,
+      ),
+      _ =>
+        transaction.categoryName.trim().isEmpty
+            ? strings.paymentMethodLabel(PaymentMethodType.other)
+            : transaction.categoryName.trim(),
+    };
   }
 
   NetProfitHealth _buildHealth({
@@ -405,15 +644,53 @@ class NetProfitDetailService {
 }
 
 class _DailyAccumulator {
-  const _DailyAccumulator({this.incomeMinor = 0, this.expenseMinor = 0});
+  int incomeMinor = 0;
+  int expenseMinor = 0;
+  int cashIncomeMinor = 0;
+  int cardIncomeMinor = 0;
+  final List<NetProfitTransactionRow> incomeTransactions =
+      <NetProfitTransactionRow>[];
+  final List<NetProfitTransactionRow> expenseTransactions =
+      <NetProfitTransactionRow>[];
+}
 
-  final int incomeMinor;
-  final int expenseMinor;
+class _ExpenseCategoryAccumulator {
+  _ExpenseCategoryAccumulator(this.categoryName);
 
-  _DailyAccumulator copyWith({int? incomeMinor, int? expenseMinor}) {
-    return _DailyAccumulator(
-      incomeMinor: incomeMinor ?? this.incomeMinor,
-      expenseMinor: expenseMinor ?? this.expenseMinor,
-    );
+  final String categoryName;
+  int amountMinor = 0;
+  final List<NetProfitTransactionRow> transactions =
+      <NetProfitTransactionRow>[];
+
+  void add(NetProfitTransactionRow row) {
+    amountMinor += row.amountMinor;
+    transactions.add(row);
+  }
+}
+
+class _IncomeSourceAccumulator {
+  _IncomeSourceAccumulator(this.label);
+
+  final String label;
+  int amountMinor = 0;
+  final Map<DateTime, int> _days = <DateTime, int>{};
+
+  void add(DateTime date, int amount) {
+    amountMinor += amount;
+    _days[date] = (_days[date] ?? 0) + amount;
+  }
+
+  List<NetProfitIncomeSourceDayBreakdown> get orderedDays {
+    final List<MapEntry<DateTime, int>> entries = _days.entries.toList()
+      ..sort((MapEntry<DateTime, int> a, MapEntry<DateTime, int> b) {
+        return a.key.compareTo(b.key);
+      });
+    return <NetProfitIncomeSourceDayBreakdown>[
+      for (final MapEntry<DateTime, int> entry in entries)
+        NetProfitIncomeSourceDayBreakdown(
+          date: entry.key,
+          amountMinor: entry.value,
+        ),
+    ];
   }
 }

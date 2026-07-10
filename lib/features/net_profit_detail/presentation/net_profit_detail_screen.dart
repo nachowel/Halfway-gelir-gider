@@ -218,6 +218,12 @@ class _NetProfitDetailScreenState extends ConsumerState<NetProfitDetailScreen> {
   }
 }
 
+String _dateKey(DateTime date) {
+  final String month = date.month.toString().padLeft(2, '0');
+  final String day = date.day.toString().padLeft(2, '0');
+  return '${date.year}-$month-$day';
+}
+
 class _NetProfitDetailContent extends StatelessWidget {
   const _NetProfitDetailContent({required this.viewModel});
 
@@ -230,6 +236,8 @@ class _NetProfitDetailContent extends StatelessWidget {
       children: <Widget>[
         _KpiRow(viewModel: viewModel),
         const SizedBox(height: AppSpacing.md),
+        _PaymentBreakdownSection(viewModel: viewModel),
+        const SizedBox(height: AppSpacing.md),
         _ProfitHealthCard(viewModel: viewModel),
         const SizedBox(height: AppSpacing.md),
         _ComparisonCard(viewModel: viewModel),
@@ -241,7 +249,83 @@ class _NetProfitDetailContent extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         _DailyProfitChartCard(viewModel: viewModel),
         const SizedBox(height: AppSpacing.lg),
-        _BreakdownSection(viewModel: viewModel),
+        _ExpandableDailyBreakdownSection(
+          key: ValueKey<String>(
+            'daily-breakdown-${viewModel.query.preset.name}-'
+            '${_dateKey(viewModel.rangeStart)}-${_dateKey(viewModel.rangeEnd)}',
+          ),
+          viewModel: viewModel,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _WeeklyExpenseDetailsSection(
+          key: ValueKey<String>(
+            'weekly-expenses-${viewModel.query.preset.name}-'
+            '${_dateKey(viewModel.rangeStart)}-${_dateKey(viewModel.rangeEnd)}',
+          ),
+          viewModel: viewModel,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _WeeklyIncomeDetailsSection(
+          key: ValueKey<String>(
+            'weekly-income-${viewModel.query.preset.name}-'
+            '${_dateKey(viewModel.rangeStart)}-${_dateKey(viewModel.rangeEnd)}',
+          ),
+          viewModel: viewModel,
+        ),
+      ],
+    );
+  }
+}
+
+class _PaymentBreakdownSection extends StatelessWidget {
+  const _PaymentBreakdownSection({required this.viewModel});
+
+  final NetProfitDetailViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (viewModel.incomePaymentBreakdowns.isEmpty &&
+        viewModel.expensePaymentBreakdowns.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        HiFiSectionHeader.title(left: 'Payment breakdown'),
+        const SizedBox(height: AppSpacing.sm),
+        HiFiCard.compact(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (viewModel.incomePaymentBreakdowns.isNotEmpty) ...<Widget>[
+                Text('Income', style: AppTypography.lbl),
+                const SizedBox(height: AppSpacing.xs),
+                for (final NetProfitPaymentBreakdown row
+                    in viewModel.incomePaymentBreakdowns)
+                  _AmountLine(
+                    label: row.label,
+                    amountMinor: row.amountMinor,
+                    income: true,
+                  ),
+              ],
+              if (viewModel.incomePaymentBreakdowns.isNotEmpty &&
+                  viewModel.expensePaymentBreakdowns.isNotEmpty)
+                const Divider(color: AppColors.borderSoft, height: 22),
+              if (viewModel.expensePaymentBreakdowns.isNotEmpty) ...<Widget>[
+                Text('Expenses', style: AppTypography.lbl),
+                const SizedBox(height: AppSpacing.xs),
+                for (final NetProfitPaymentBreakdown row
+                    in viewModel.expensePaymentBreakdowns)
+                  _AmountLine(
+                    label: row.label,
+                    amountMinor: row.amountMinor,
+                    income: false,
+                  ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -613,7 +697,13 @@ class _DailyProfitChartCard extends StatelessWidget {
               if (viewModel.hasDisabledChartState)
                 const _ChartEmptyState()
               else
-                _NetProfitBarChart(series: viewModel.dailyProfitSeries),
+                _NetProfitBarChart(
+                  key: ValueKey<String>(
+                    'profit-chart-${viewModel.query.preset.name}-'
+                    '${_dateKey(viewModel.rangeStart)}-${_dateKey(viewModel.rangeEnd)}',
+                  ),
+                  series: viewModel.dailyProfitSeries,
+                ),
             ],
           ),
         ),
@@ -631,8 +721,8 @@ class _ProfitChartLegend extends StatelessWidget {
       spacing: AppSpacing.lg,
       runSpacing: AppSpacing.xs,
       children: <Widget>[
-        _LegendItem(label: context.strings.profit, color: AppColors.income),
-        _LegendItem(label: context.strings.loss, color: AppColors.expense),
+        _LegendItem(label: context.strings.income, color: AppColors.income),
+        _LegendItem(label: context.strings.expenses, color: AppColors.expense),
       ],
     );
   }
@@ -662,7 +752,7 @@ class _LegendItem extends StatelessWidget {
 }
 
 class _NetProfitBarChart extends StatefulWidget {
-  const _NetProfitBarChart({required this.series});
+  const _NetProfitBarChart({required this.series, super.key});
 
   final List<NetProfitChartPoint> series;
 
@@ -683,15 +773,18 @@ class _NetProfitBarChartState extends State<_NetProfitBarChart> {
       double maxValue,
       NetProfitChartPoint point,
     ) {
-      return math.max(maxValue, point.profitMinor.abs() / 100);
+      return math.max(
+        maxValue,
+        math.max(point.incomeMinor, point.expenseMinor) / 100,
+      );
     });
     final double maxY = _service.niceAxisMax(maxMagnitudePounds);
     final List<double> tickValues = <double>[
       maxY,
+      maxY * 0.75,
       maxY / 2,
+      maxY / 4,
       0,
-      -maxY / 2,
-      -maxY,
     ];
     final int labelStep = _labelStep(series.length);
     final int selectedIndex = _selectedIndex ?? _defaultSelectedIndex(series);
@@ -744,14 +837,12 @@ class _NetProfitBarChartState extends State<_NetProfitBarChart> {
                           for (int i = 0; i < tickValues.length; i++)
                             Expanded(
                               child: Align(
-                                alignment: i == 2
-                                    ? Alignment.center
-                                    : i < 2
-                                    ? Alignment.topCenter
-                                    : Alignment.bottomCenter,
+                                alignment: i == tickValues.length - 1
+                                    ? Alignment.bottomCenter
+                                    : Alignment.topCenter,
                                 child: Container(
-                                  height: i == 2 ? 1.4 : 1,
-                                  color: i == 2
+                                  height: i == tickValues.length - 1 ? 1.4 : 1,
+                                  color: i == tickValues.length - 1
                                       ? AppColors.border
                                       : AppColors.borderSoft,
                                 ),
@@ -816,16 +907,15 @@ class _NetProfitBarChartState extends State<_NetProfitBarChart> {
 
   String _formatTickLabel(double value) {
     final int rounded = value.round();
-    final String prefix = rounded < 0 ? '-£' : '£';
     final int absValue = rounded.abs();
     if (absValue >= 1000) {
       final double thousands = absValue / 1000;
       final String compact = thousands % 1 == 0
           ? thousands.toStringAsFixed(0)
           : thousands.toStringAsFixed(1);
-      return '$prefix${compact.replaceAll('.0', '')}k';
+      return '£${compact.replaceAll('.0', '')}k';
     }
-    return '$prefix$absValue';
+    return '£$absValue';
   }
 }
 
@@ -910,10 +1000,12 @@ class _ProfitBarColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double magnitudeFactor = maxY == 0
+    final double incomeFactor = maxY == 0
         ? 0
-        : ((point.profitMinor.abs() / 100) / maxY).clamp(0.0, 1.0);
-    final bool positive = point.profitMinor >= 0;
+        : ((point.incomeMinor / 100) / maxY).clamp(0.0, 1.0);
+    final double expenseFactor = maxY == 0
+        ? 0
+        : ((point.expenseMinor / 100) / maxY).clamp(0.0, 1.0);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 1.5),
@@ -925,37 +1017,33 @@ class _ProfitBarColumn extends StatelessWidget {
           child: Column(
             children: <Widget>[
               Expanded(
-                child: Column(
-                  children: <Widget>[
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: positive
-                            ? FractionallySizedBox(
-                                heightFactor: magnitudeFactor,
-                                child: _ProfitBar(
-                                  positive: true,
-                                  isSelected: isSelected,
-                                ),
-                              )
-                            : const SizedBox.shrink(),
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Flexible(
+                        child: FractionallySizedBox(
+                          heightFactor: incomeFactor,
+                          child: _ProfitBar(
+                            positive: true,
+                            isSelected: isSelected,
+                          ),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: positive
-                            ? const SizedBox.shrink()
-                            : FractionallySizedBox(
-                                heightFactor: magnitudeFactor,
-                                child: _ProfitBar(
-                                  positive: false,
-                                  isSelected: isSelected,
-                                ),
-                              ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: FractionallySizedBox(
+                          heightFactor: expenseFactor,
+                          child: _ProfitBar(
+                            positive: false,
+                            isSelected: isSelected,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -1032,13 +1120,39 @@ class _AxisTickLabel extends StatelessWidget {
   }
 }
 
-class _BreakdownSection extends StatelessWidget {
-  const _BreakdownSection({required this.viewModel});
+class _ExpandableDailyBreakdownSection extends StatefulWidget {
+  const _ExpandableDailyBreakdownSection({required this.viewModel, super.key});
 
   final NetProfitDetailViewModel viewModel;
 
   @override
+  State<_ExpandableDailyBreakdownSection> createState() =>
+      _ExpandableDailyBreakdownSectionState();
+}
+
+class _ExpandableDailyBreakdownSectionState
+    extends State<_ExpandableDailyBreakdownSection> {
+  final Set<String> _expanded = <String>{};
+
+  @override
   Widget build(BuildContext context) {
+    final List<NetProfitDailyBreakdown> rows =
+        widget.viewModel.dailyBreakdowns.isNotEmpty
+        ? widget.viewModel.dailyBreakdowns
+        : <NetProfitDailyBreakdown>[
+            for (final NetProfitBreakdownRow row
+                in widget.viewModel.breakdownRows)
+              NetProfitDailyBreakdown(
+                date: row.date,
+                incomeMinor: row.incomeMinor,
+                expenseMinor: row.expenseMinor,
+                cashIncomeMinor: 0,
+                cardIncomeMinor: 0,
+                incomeTransactions: const <NetProfitTransactionRow>[],
+                expenseTransactions: const <NetProfitTransactionRow>[],
+              ),
+          ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -1047,14 +1161,21 @@ class _BreakdownSection extends StatelessWidget {
         HiFiCard.compact(
           child: Column(
             children: <Widget>[
-              for (
-                int i = 0;
-                i < viewModel.breakdownRows.length;
-                i++
-              ) ...<Widget>[
-                _BreakdownRow(row: viewModel.breakdownRows[i]),
-                if (i != viewModel.breakdownRows.length - 1)
-                  const Divider(color: AppColors.borderSoft, height: 20),
+              for (int i = 0; i < rows.length; i++) ...<Widget>[
+                _DailyExpandableRow(
+                  row: rows[i],
+                  expanded: _expanded.contains(_dateKey(rows[i].date)),
+                  onTap: () {
+                    setState(() {
+                      final String key = _dateKey(rows[i].date);
+                      if (!_expanded.remove(key)) {
+                        _expanded.add(key);
+                      }
+                    });
+                  },
+                ),
+                if (i != rows.length - 1)
+                  const Divider(color: AppColors.borderSoft, height: 18),
               ],
             ],
           ),
@@ -1064,41 +1185,492 @@ class _BreakdownSection extends StatelessWidget {
   }
 }
 
-class _BreakdownRow extends StatelessWidget {
-  const _BreakdownRow({required this.row});
+class _DailyExpandableRow extends StatelessWidget {
+  const _DailyExpandableRow({
+    required this.row,
+    required this.expanded,
+    required this.onTap,
+  });
 
-  final NetProfitBreakdownRow row;
+  final NetProfitDailyBreakdown row;
+  final bool expanded;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bool negative = row.profitMinor < 0;
+    final bool negative = row.netMinor < 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                context.strings.weekdayShortDate(row.date),
-                style: AppTypography.ttl,
+        InkWell(
+          key: ValueKey<String>('daily-row-${_dateKey(row.date)}'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.base),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    expanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                    size: 20,
+                    color: AppColors.inkSoft,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          context.strings.weekdayShortDate(row.date),
+                          style: AppTypography.ttl,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${context.strings.income} ${_NetProfitDetailScreenState.formatCurrency(row.incomeMinor)} · '
+                          '${context.strings.expenses} ${_NetProfitDetailScreenState.formatCurrency(row.expenseMinor)}',
+                          style: AppTypography.bodySoft,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Cash ${_NetProfitDetailScreenState.formatCurrency(row.cashIncomeMinor)} · '
+                          'Card ${_NetProfitDetailScreenState.formatCurrency(row.cardIncomeMinor)}',
+                          style: AppTypography.meta,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    _NetProfitDetailScreenState.formatCurrency(row.netMinor),
+                    style: AppTypography.numSm.copyWith(
+                      color: negative ? AppColors.expense : AppColors.income,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              _NetProfitDetailScreenState.formatCurrency(row.profitMinor),
-              style: AppTypography.numSm.copyWith(
-                color: negative ? AppColors.expense : AppColors.incomeInk,
-              ),
+          ),
+        ),
+        if (expanded) ...<Widget>[
+          const SizedBox(height: AppSpacing.xs),
+          if (row.incomeTransactions.isNotEmpty)
+            _TransactionGroup(
+              title: context.strings.income,
+              income: true,
+              transactions: row.incomeTransactions,
+            ),
+          if (row.expenseTransactions.isNotEmpty) ...<Widget>[
+            if (row.incomeTransactions.isNotEmpty)
+              const SizedBox(height: AppSpacing.xs),
+            _TransactionGroup(
+              title: context.strings.expenses,
+              income: false,
+              transactions: row.expenseTransactions,
             ),
           ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '${context.strings.income} ${_NetProfitDetailScreenState.formatCurrency(row.incomeMinor)}'
-          '  ·  ${context.strings.expenses} ${_NetProfitDetailScreenState.formatCurrency(row.expenseMinor)}',
-          style: AppTypography.bodySoft,
-        ),
+        ],
       ],
+    );
+  }
+}
+
+class _WeeklyExpenseDetailsSection extends StatefulWidget {
+  const _WeeklyExpenseDetailsSection({required this.viewModel, super.key});
+
+  final NetProfitDetailViewModel viewModel;
+
+  @override
+  State<_WeeklyExpenseDetailsSection> createState() =>
+      _WeeklyExpenseDetailsSectionState();
+}
+
+class _WeeklyExpenseDetailsSectionState
+    extends State<_WeeklyExpenseDetailsSection> {
+  bool _expanded = false;
+  final Set<String> _expandedCategories = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.viewModel.expenseCategoryBreakdowns.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return HiFiCard.compact(
+      child: Column(
+        children: <Widget>[
+          _SectionToggle(
+            key: const ValueKey<String>('weekly-expense-details-toggle'),
+            title: 'Expenses this week',
+            amountMinor: widget.viewModel.expenseMinor,
+            income: false,
+            expanded: _expanded,
+            onTap: () => setState(() => _expanded = !_expanded),
+          ),
+          if (_expanded) ...<Widget>[
+            const Divider(color: AppColors.borderSoft, height: 18),
+            for (
+              int i = 0;
+              i < widget.viewModel.expenseCategoryBreakdowns.length;
+              i++
+            ) ...<Widget>[
+              _ExpenseCategoryExpandableRow(
+                row: widget.viewModel.expenseCategoryBreakdowns[i],
+                expanded: _expandedCategories.contains(
+                  widget.viewModel.expenseCategoryBreakdowns[i].categoryName,
+                ),
+                onTap: () {
+                  setState(() {
+                    final String key = widget
+                        .viewModel
+                        .expenseCategoryBreakdowns[i]
+                        .categoryName;
+                    if (!_expandedCategories.remove(key)) {
+                      _expandedCategories.add(key);
+                    }
+                  });
+                },
+              ),
+              if (i != widget.viewModel.expenseCategoryBreakdowns.length - 1)
+                const Divider(color: AppColors.borderSoft, height: 18),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpenseCategoryExpandableRow extends StatelessWidget {
+  const _ExpenseCategoryExpandableRow({
+    required this.row,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final NetProfitExpenseCategoryBreakdown row;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _SectionToggle(
+          key: ValueKey<String>('expense-category-${row.categoryName}'),
+          title: row.categoryName,
+          amountMinor: row.amountMinor,
+          income: false,
+          expanded: expanded,
+          onTap: onTap,
+          compact: true,
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Column(
+              children: <Widget>[
+                for (final NetProfitTransactionRow transaction
+                    in row.transactions)
+                  _TransactionDetailLine(
+                    transaction: transaction,
+                    income: false,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _WeeklyIncomeDetailsSection extends StatefulWidget {
+  const _WeeklyIncomeDetailsSection({required this.viewModel, super.key});
+
+  final NetProfitDetailViewModel viewModel;
+
+  @override
+  State<_WeeklyIncomeDetailsSection> createState() =>
+      _WeeklyIncomeDetailsSectionState();
+}
+
+class _WeeklyIncomeDetailsSectionState
+    extends State<_WeeklyIncomeDetailsSection> {
+  bool _expanded = false;
+  final Set<String> _expandedSources = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.viewModel.incomeSourceBreakdowns.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return HiFiCard.compact(
+      child: Column(
+        children: <Widget>[
+          _SectionToggle(
+            key: const ValueKey<String>('weekly-income-details-toggle'),
+            title: 'Income this week',
+            amountMinor: widget.viewModel.incomeMinor,
+            income: true,
+            expanded: _expanded,
+            onTap: () => setState(() => _expanded = !_expanded),
+          ),
+          if (_expanded) ...<Widget>[
+            const Divider(color: AppColors.borderSoft, height: 18),
+            for (
+              int i = 0;
+              i < widget.viewModel.incomeSourceBreakdowns.length;
+              i++
+            ) ...<Widget>[
+              _IncomeSourceExpandableRow(
+                row: widget.viewModel.incomeSourceBreakdowns[i],
+                expanded: _expandedSources.contains(
+                  widget.viewModel.incomeSourceBreakdowns[i].label,
+                ),
+                onTap: () {
+                  setState(() {
+                    final String key =
+                        widget.viewModel.incomeSourceBreakdowns[i].label;
+                    if (!_expandedSources.remove(key)) {
+                      _expandedSources.add(key);
+                    }
+                  });
+                },
+              ),
+              if (i != widget.viewModel.incomeSourceBreakdowns.length - 1)
+                const Divider(color: AppColors.borderSoft, height: 18),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IncomeSourceExpandableRow extends StatelessWidget {
+  const _IncomeSourceExpandableRow({
+    required this.row,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final NetProfitIncomeSourceBreakdown row;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        _SectionToggle(
+          key: ValueKey<String>('income-source-${row.label}'),
+          title: row.label,
+          amountMinor: row.amountMinor,
+          income: true,
+          expanded: expanded,
+          onTap: onTap,
+          compact: true,
+        ),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Column(
+              children: <Widget>[
+                for (final NetProfitIncomeSourceDayBreakdown day in row.days)
+                  _AmountLine(
+                    label: context.strings.weekdayShortDate(day.date),
+                    amountMinor: day.amountMinor,
+                    income: true,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _TransactionGroup extends StatelessWidget {
+  const _TransactionGroup({
+    required this.title,
+    required this.income,
+    required this.transactions,
+  });
+
+  final String title;
+  final bool income;
+  final List<NetProfitTransactionRow> transactions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: AppTypography.lbl),
+          const SizedBox(height: AppSpacing.xs),
+          for (final NetProfitTransactionRow transaction in transactions)
+            _TransactionDetailLine(transaction: transaction, income: income),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransactionDetailLine extends StatelessWidget {
+  const _TransactionDetailLine({
+    required this.transaction,
+    required this.income,
+  });
+
+  final NetProfitTransactionRow transaction;
+  final bool income;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  transaction.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.ttl,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${context.strings.weekdayShortDate(transaction.date)} · '
+                  '${context.strings.paymentMethodLabel(transaction.paymentMethod)}',
+                  style: AppTypography.meta,
+                ),
+                Text(
+                  transaction.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySoft,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            _NetProfitDetailScreenState.formatCurrency(transaction.amountMinor),
+            textAlign: TextAlign.right,
+            style: AppTypography.numSm.copyWith(
+              color: income ? AppColors.income : AppColors.expense,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionToggle extends StatelessWidget {
+  const _SectionToggle({
+    required this.title,
+    required this.amountMinor,
+    required this.income,
+    required this.expanded,
+    required this.onTap,
+    this.compact = false,
+    super.key,
+  });
+
+  final String title;
+  final int amountMinor;
+  final bool income;
+  final bool expanded;
+  final VoidCallback onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.base),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
+          child: Row(
+            children: <Widget>[
+              Icon(
+                expanded
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                size: 20,
+                color: AppColors.inkSoft,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: compact ? AppTypography.ttl : AppTypography.h2,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                _NetProfitDetailScreenState.formatCurrency(amountMinor),
+                style: AppTypography.numSm.copyWith(
+                  color: income ? AppColors.income : AppColors.expense,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AmountLine extends StatelessWidget {
+  const _AmountLine({
+    required this.label,
+    required this.amountMinor,
+    required this.income,
+  });
+
+  final String label;
+  final int amountMinor;
+  final bool income;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.bodySoft,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            _NetProfitDetailScreenState.formatCurrency(amountMinor),
+            style: AppTypography.numSm.copyWith(
+              color: income ? AppColors.income : AppColors.expense,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ],
+      ),
     );
   }
 }

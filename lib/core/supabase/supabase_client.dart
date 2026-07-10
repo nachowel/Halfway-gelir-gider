@@ -53,7 +53,7 @@ final class SupabaseRuntimeConfig {
       throw SupabaseConfigException(
         'Missing required Supabase configuration: ${missingKeys.join(', ')}. '
         'Run Flutter with compile-time defines, for example '
-        '`--dart-define-from-file=.env.local`.',
+        '`--dart-define-from-file=.env.app.local`.',
       );
     }
 

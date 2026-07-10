@@ -10,7 +10,7 @@ abstract class SecureWindowController {
 class AndroidSecureWindowController implements SecureWindowController {
   AndroidSecureWindowController({MethodChannel? channel})
     : _channel =
-          channel ?? const MethodChannel('com.nacho.gider/window_secure');
+          channel ?? const MethodChannel('com.gider.app/window_secure');
 
   final MethodChannel _channel;
 

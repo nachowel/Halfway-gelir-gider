@@ -1,11 +1,11 @@
 {
-    "name": "gider",
-    "short_name": "gider",
+    "name": "Halfway",
+    "short_name": "Halfway",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Halfway",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

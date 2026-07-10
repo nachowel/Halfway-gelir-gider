@@ -609,8 +609,7 @@ class GiderRepository {
               .isFilter('deleted_at', null)
               .maybeSingle();
         } on PostgrestException catch (inner) {
-          if (includeSupplier &&
-              _isMissingSupplierRelationError(inner)) {
+          if (includeSupplier && _isMissingSupplierRelationError(inner)) {
             return _fetchTransactionRow(id: id, includeSupplier: false);
           }
           rethrow;
@@ -1850,6 +1849,14 @@ class GiderRepository {
         TransactionType.income => NetProfitTransactionType.income,
         TransactionType.expense => NetProfitTransactionType.expense,
       },
+      categoryName: transaction.categoryName,
+      paymentMethod: transaction.paymentMethod,
+      sourcePlatform: transaction.sourcePlatform,
+      vendor: transaction.vendor,
+      supplierId: transaction.supplierId,
+      supplierName: transaction.supplierName,
+      staffName: transaction.staffName,
+      note: transaction.note,
     );
   }
 }

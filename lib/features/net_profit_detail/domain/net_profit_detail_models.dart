@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../data/app_models.dart';
+
 int _inclusiveDayCount(DateTime start, DateTime end) {
   final DateTime utcStart = DateTime.utc(start.year, start.month, start.day);
   final DateTime utcEnd = DateTime.utc(end.year, end.month, end.day);
@@ -105,11 +107,27 @@ class NetProfitDetailTransaction {
     required this.occurredOn,
     required this.amountMinor,
     required this.type,
+    this.categoryName = 'Uncategorized',
+    this.paymentMethod = PaymentMethodType.other,
+    this.sourcePlatform,
+    this.vendor,
+    this.supplierId,
+    this.supplierName,
+    this.staffName,
+    this.note,
   });
 
   final DateTime occurredOn;
   final int amountMinor;
   final NetProfitTransactionType type;
+  final String categoryName;
+  final PaymentMethodType paymentMethod;
+  final SourcePlatformType? sourcePlatform;
+  final String? vendor;
+  final String? supplierId;
+  final String? supplierName;
+  final String? staffName;
+  final String? note;
 }
 
 @immutable
@@ -140,6 +158,94 @@ class NetProfitBreakdownRow {
   final int expenseMinor;
 
   int get profitMinor => incomeMinor - expenseMinor;
+}
+
+@immutable
+class NetProfitTransactionRow {
+  const NetProfitTransactionRow({
+    required this.date,
+    required this.title,
+    required this.subtitle,
+    required this.amountMinor,
+    required this.paymentMethod,
+  });
+
+  final DateTime date;
+  final String title;
+  final String subtitle;
+  final int amountMinor;
+  final PaymentMethodType paymentMethod;
+}
+
+@immutable
+class NetProfitPaymentBreakdown {
+  const NetProfitPaymentBreakdown({
+    required this.label,
+    required this.amountMinor,
+  });
+
+  final String label;
+  final int amountMinor;
+}
+
+@immutable
+class NetProfitDailyBreakdown {
+  const NetProfitDailyBreakdown({
+    required this.date,
+    required this.incomeMinor,
+    required this.expenseMinor,
+    required this.cashIncomeMinor,
+    required this.cardIncomeMinor,
+    required this.incomeTransactions,
+    required this.expenseTransactions,
+  });
+
+  final DateTime date;
+  final int incomeMinor;
+  final int expenseMinor;
+  final int cashIncomeMinor;
+  final int cardIncomeMinor;
+  final List<NetProfitTransactionRow> incomeTransactions;
+  final List<NetProfitTransactionRow> expenseTransactions;
+
+  int get netMinor => incomeMinor - expenseMinor;
+}
+
+@immutable
+class NetProfitExpenseCategoryBreakdown {
+  const NetProfitExpenseCategoryBreakdown({
+    required this.categoryName,
+    required this.amountMinor,
+    required this.transactions,
+  });
+
+  final String categoryName;
+  final int amountMinor;
+  final List<NetProfitTransactionRow> transactions;
+}
+
+@immutable
+class NetProfitIncomeSourceDayBreakdown {
+  const NetProfitIncomeSourceDayBreakdown({
+    required this.date,
+    required this.amountMinor,
+  });
+
+  final DateTime date;
+  final int amountMinor;
+}
+
+@immutable
+class NetProfitIncomeSourceBreakdown {
+  const NetProfitIncomeSourceBreakdown({
+    required this.label,
+    required this.amountMinor,
+    required this.days,
+  });
+
+  final String label;
+  final int amountMinor;
+  final List<NetProfitIncomeSourceDayBreakdown> days;
 }
 
 @immutable
@@ -223,6 +329,12 @@ class NetProfitDetailViewModel {
     required this.expensePressureMessage,
     required this.isEmpty,
     required this.hasDisabledChartState,
+    this.incomePaymentBreakdowns = const <NetProfitPaymentBreakdown>[],
+    this.expensePaymentBreakdowns = const <NetProfitPaymentBreakdown>[],
+    this.dailyBreakdowns = const <NetProfitDailyBreakdown>[],
+    this.expenseCategoryBreakdowns =
+        const <NetProfitExpenseCategoryBreakdown>[],
+    this.incomeSourceBreakdowns = const <NetProfitIncomeSourceBreakdown>[],
   });
 
   final NetProfitDetailQuery query;
@@ -245,6 +357,11 @@ class NetProfitDetailViewModel {
   final String? expensePressureMessage;
   final bool isEmpty;
   final bool hasDisabledChartState;
+  final List<NetProfitPaymentBreakdown> incomePaymentBreakdowns;
+  final List<NetProfitPaymentBreakdown> expensePaymentBreakdowns;
+  final List<NetProfitDailyBreakdown> dailyBreakdowns;
+  final List<NetProfitExpenseCategoryBreakdown> expenseCategoryBreakdowns;
+  final List<NetProfitIncomeSourceBreakdown> incomeSourceBreakdowns;
 
   int get dayCount => _inclusiveDayCount(rangeStart, rangeEnd);
 }

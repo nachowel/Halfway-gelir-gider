@@ -29,6 +29,28 @@ void main() {
       );
     });
 
+    test('missing config message points to public-only app env file', () {
+      expect(
+        () => SupabaseRuntimeConfig.fromValues(
+          url: '',
+          anonKey: '',
+        ),
+        throwsA(
+          isA<SupabaseConfigException>()
+              .having(
+                (SupabaseConfigException error) => error.message,
+                'message',
+                contains('--dart-define-from-file=.env.app.local'),
+              )
+              .having(
+                (SupabaseConfigException error) => error.message,
+                'message',
+                isNot(contains('--dart-define-from-file=.env.local')),
+              ),
+        ),
+      );
+    });
+
     test('throws when URL does not start with https', () {
       expect(
         () => SupabaseRuntimeConfig.fromValues(

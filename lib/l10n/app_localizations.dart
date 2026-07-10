@@ -42,7 +42,7 @@ class AppLocalizations {
     return value;
   }
 
-  String get appTitle => 'Gider';
+  String get appTitle => 'Halfway';
   String get checkingSession => switch (locale) {
     AppLocale.en => 'Checking your session...',
     AppLocale.tr => 'Oturumunuz kontrol ediliyor...',
@@ -931,7 +931,7 @@ class AppLocalizations {
     AppLocale.en => 'Business name cannot be empty.',
     AppLocale.tr => 'Isletme adi bos olamaz.',
   };
-  String get versionPrivate => 'gider · v1.0 · private';
+  String get versionPrivate => 'Halfway · v1.0 · private';
   String get settingsLoadError => switch (locale) {
     AppLocale.en => 'We could not load your settings.',
     AppLocale.tr => 'Ayarlariniz yuklenemedi.',

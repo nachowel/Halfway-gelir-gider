@@ -30,9 +30,11 @@ void main() {
   }
 
   TransactionData build({
+    TransactionType type = TransactionType.expense,
     String? vendor,
     String? supplierName,
     String? supplierId,
+    String? staffName,
     String? note,
     String categoryName = 'Stock Purchase',
     PaymentMethodType paymentMethod = PaymentMethodType.card,
@@ -40,7 +42,7 @@ void main() {
   }) {
     return TransactionData(
       id: 'tx',
-      type: TransactionType.expense,
+      type: type,
       occurredOn: DateTime(2026, 4, 15),
       amountMinor: 10000,
       categoryId: 'cat',
@@ -51,27 +53,134 @@ void main() {
       vendor: vendor,
       supplierId: supplierId,
       supplierName: supplierName,
+      staffName: staffName,
       note: note,
     );
   }
 
   group('buildTransactionTitle', () {
-    test('returns category name regardless of vendor or supplier', () {
+    test('uses expense supplier, vendor, or staff name as primary title', () {
       expect(
-        buildTransactionTitle(build(categoryName: 'Staff Wages')),
-        'Staff Wages',
+        buildTransactionTitle(
+          build(
+            categoryName: 'Stock Purchase',
+            supplierName: 'Bread Bacon',
+            vendor: 'Backup Vendor',
+          ),
+        ),
+        'Bread Bacon',
       );
       expect(
         buildTransactionTitle(
-          build(categoryName: 'Stock Purchase', vendor: 'Costco'),
+          build(categoryName: 'Stock Purchase', vendor: '6868 Catering'),
+        ),
+        '6868 Catering',
+      );
+      expect(
+        buildTransactionTitle(
+          build(categoryName: 'Staff Wages', staffName: 'Yusuf abi'),
+        ),
+        'Yusuf abi',
+      );
+    });
+
+    test(
+      'prioritizes staff name for Staff Wages when payee fields conflict',
+      () {
+        expect(
+          buildTransactionTitle(
+            build(
+              categoryName: 'Staff Wages',
+              supplierName: 'Old Payroll Supplier',
+              vendor: 'Legacy payroll note',
+              staffName: 'Yusuf abi',
+            ),
+          ),
+          'Yusuf abi',
+        );
+      },
+    );
+
+    test('prioritizes supplier then vendor for stock purchases', () {
+      expect(
+        buildTransactionTitle(
+          build(
+            categoryName: 'Stock Purchase',
+            supplierName: 'Bread Bacon',
+            vendor: '6868 Catering',
+            staffName: 'Yusuf abi',
+          ),
+        ),
+        'Bread Bacon',
+      );
+      expect(
+        buildTransactionTitle(
+          build(
+            categoryName: 'Stock Purchase',
+            supplierName: null,
+            vendor: '6868 Catering',
+            staffName: 'Yusuf abi',
+          ),
+        ),
+        '6868 Catering',
+      );
+    });
+
+    test('uses the strongest non-staff payee for other expenses', () {
+      expect(
+        buildTransactionTitle(
+          build(
+            categoryName: 'Maintenance',
+            supplierName: 'Acme Repairs',
+            vendor: 'Receipt counter text',
+            staffName: 'Yusuf abi',
+          ),
+        ),
+        'Acme Repairs',
+      );
+      expect(
+        buildTransactionTitle(
+          build(
+            categoryName: 'Maintenance',
+            supplierName: null,
+            vendor: 'Receipt counter text',
+            staffName: 'Yusuf abi',
+          ),
+        ),
+        'Receipt counter text',
+      );
+    });
+
+    test('falls back to category name when expense payee is empty', () {
+      expect(
+        buildTransactionTitle(
+          build(
+            categoryName: 'Stock Purchase',
+            vendor: '   ',
+            supplierName: null,
+            staffName: null,
+          ),
         ),
         'Stock Purchase',
+      );
+    });
+
+    test('keeps income title as category name', () {
+      expect(
+        buildTransactionTitle(
+          build(
+            type: TransactionType.income,
+            categoryName: 'Card Sales',
+            vendor: 'Uber Eats payout',
+          ),
+        ),
+        'Card Sales',
       );
     });
   });
 
   group('buildTransactionSubtitle', () {
-    test('uses supplier name when linked supplier resolves', () {
+    test('uses category and payment when expense has resolved supplier', () {
       final result = buildTransactionSubtitle(
         transaction: build(
           supplierId: 'sup-1',
@@ -82,39 +191,57 @@ void main() {
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
-      expect(result, 'Best Vendor · monthly order · Card');
+      expect(result, 'Stock Purchase · Card');
     });
 
-    test('falls back to vendor when no supplier is linked', () {
+    test('uses category and payment method for expense rows', () {
       final result = buildTransactionSubtitle(
-        transaction: build(vendor: 'Costco'),
+        transaction: build(
+          categoryName: 'Staff Wages',
+          staffName: 'Yusuf abi',
+          paymentMethod: PaymentMethodType.cash,
+        ),
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
-      expect(result, 'Costco · Card');
+      expect(result, 'Staff Wages · Cash');
     });
 
-    test('trims whitespace vendor and uses it when present', () {
+    test(
+      'keeps expense subtitle to category and payment when payee is blank',
+      () {
+        final result = buildTransactionSubtitle(
+          transaction: build(
+            categoryName: 'Fuel',
+            vendor: '  ',
+            paymentMethod: PaymentMethodType.cash,
+          ),
+          paymentLabel: paymentLabel,
+          sourcePlatformLabel: platformLabel,
+        );
+        expect(result, 'Fuel · Cash');
+      },
+    );
+
+    test('does not append expense note or source platform to subtitle', () {
       final result = buildTransactionSubtitle(
-        transaction: build(vendor: '   Costco   '),
+        transaction: build(
+          categoryName: 'Stock Purchase',
+          vendor: 'Bread Bacon',
+          note: 'Milk, bread',
+          sourcePlatform: SourcePlatformType.direct,
+        ),
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
-      expect(result, 'Costco · Card');
-    });
-
-    test('appends note after vendor when note is short', () {
-      final result = buildTransactionSubtitle(
-        transaction: build(vendor: 'Lidl', note: 'Milk, bread'),
-        paymentLabel: paymentLabel,
-        sourcePlatformLabel: platformLabel,
-      );
-      expect(result, 'Lidl · Milk, bread · Card');
+      expect(result, 'Stock Purchase · Card');
     });
 
     test('truncates long notes with ellipsis at 28 characters', () {
       final result = buildTransactionSubtitle(
         transaction: build(
+          type: TransactionType.income,
+          categoryName: 'Card Sales',
           vendor: 'Lidl',
           note: 'Weekly groceries for the cafe, milk bread eggs butter',
         ),
@@ -128,7 +255,12 @@ void main() {
 
     test('ignores empty or whitespace-only notes', () {
       final result = buildTransactionSubtitle(
-        transaction: build(vendor: 'Costco', note: '   '),
+        transaction: build(
+          type: TransactionType.income,
+          categoryName: 'Card Sales',
+          vendor: 'Costco',
+          note: '   ',
+        ),
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
@@ -137,26 +269,34 @@ void main() {
 
     test('ignores null notes', () {
       final result = buildTransactionSubtitle(
-        transaction: build(vendor: 'Costco', note: null),
+        transaction: build(
+          type: TransactionType.income,
+          categoryName: 'Card Sales',
+          vendor: 'Costco',
+          note: null,
+        ),
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
       expect(result, 'Costco · Card');
     });
 
-    test('falls back to category and payment when vendor and supplier are empty', () {
-      final result = buildTransactionSubtitle(
-        transaction: build(
-          categoryName: 'Rent',
-          vendor: null,
-          supplierName: null,
-          note: 'april rent',
-        ),
-        paymentLabel: paymentLabel,
-        sourcePlatformLabel: platformLabel,
-      );
-      expect(result, 'Rent · Card');
-    });
+    test(
+      'falls back to category and payment when vendor and supplier are empty',
+      () {
+        final result = buildTransactionSubtitle(
+          transaction: build(
+            categoryName: 'Rent',
+            vendor: null,
+            supplierName: null,
+            note: 'april rent',
+          ),
+          paymentLabel: paymentLabel,
+          sourcePlatformLabel: platformLabel,
+        );
+        expect(result, 'Rent · Card');
+      },
+    );
 
     test('appends source platform for income transactions', () {
       final result = buildTransactionSubtitle(
@@ -178,16 +318,19 @@ void main() {
       expect(result, 'Uber Eats payout · Card · Uber Eats');
     });
 
-    test('does not append source platform for expense without platform', () {
+    test('uses category and payment for expense without platform', () {
       final result = buildTransactionSubtitle(
-        transaction: build(vendor: 'Tesco', paymentMethod: PaymentMethodType.cash),
+        transaction: build(
+          vendor: 'Tesco',
+          paymentMethod: PaymentMethodType.cash,
+        ),
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
-      expect(result, 'Tesco · Cash');
+      expect(result, 'Stock Purchase · Cash');
     });
 
-    test('archived supplier still appears with its resolved name', () {
+    test('uses category and payment when archived supplier resolves', () {
       final result = buildTransactionSubtitle(
         transaction: build(
           supplierId: 'sup-archived',
@@ -196,10 +339,10 @@ void main() {
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
-      expect(result, 'Old Supplier Inc · Card');
+      expect(result, 'Stock Purchase · Card');
     });
 
-    test('supplier id without resolved name falls back to vendor', () {
+    test('uses category and payment when supplier name is missing', () {
       final result = buildTransactionSubtitle(
         transaction: build(
           supplierId: 'sup-deleted',
@@ -209,7 +352,7 @@ void main() {
         paymentLabel: paymentLabel,
         sourcePlatformLabel: platformLabel,
       );
-      expect(result, 'Fallback Vendor · Card');
+      expect(result, 'Stock Purchase · Card');
     });
   });
 }

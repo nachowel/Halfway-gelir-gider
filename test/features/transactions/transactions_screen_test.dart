@@ -146,6 +146,61 @@ void main() {
     ];
   }
 
+  List<TransactionData> hierarchyTransactions() {
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+
+    return <TransactionData>[
+      TransactionData(
+        id: 'h1',
+        type: TransactionType.expense,
+        occurredOn: today,
+        amountMinor: 1200,
+        categoryId: 'stock',
+        categoryName: 'Stock Purchase',
+        paymentMethod: PaymentMethodType.card,
+        createdAt: DateTime(today.year, today.month, today.day, 12),
+        vendor: 'Bread Bacon',
+      ),
+      TransactionData(
+        id: 'h2',
+        type: TransactionType.expense,
+        occurredOn: today,
+        amountMinor: 8500,
+        categoryId: 'staff',
+        categoryName: 'Staff Wages',
+        paymentMethod: PaymentMethodType.cash,
+        createdAt: DateTime(today.year, today.month, today.day, 11),
+        supplierName: 'Old Payroll Supplier',
+        vendor: 'Legacy payroll note',
+        staffName: 'Yusuf abi',
+      ),
+      TransactionData(
+        id: 'h3',
+        type: TransactionType.expense,
+        occurredOn: today,
+        amountMinor: 990,
+        categoryId: 'fuel',
+        categoryName: 'Fuel',
+        paymentMethod: PaymentMethodType.cash,
+        createdAt: DateTime(today.year, today.month, today.day, 10),
+        vendor: null,
+      ),
+      TransactionData(
+        id: 'h4',
+        type: TransactionType.income,
+        occurredOn: today,
+        amountMinor: 45000,
+        categoryId: 'card-sales',
+        categoryName: 'Card Sales',
+        paymentMethod: PaymentMethodType.card,
+        createdAt: DateTime(today.year, today.month, today.day, 9),
+        sourcePlatform: SourcePlatformType.direct,
+        vendor: 'Card Sales',
+      ),
+    ];
+  }
+
   Widget buildTestApp({
     required List<TransactionData> data,
     bool simulateError = false,
@@ -237,6 +292,66 @@ void main() {
     expect(find.text('Groceries · Card'), findsOneWidget);
     expect(find.text('Card Sales · Card · Direct'), findsOneWidget);
   });
+
+  testWidgets(
+    'renders expense payee as title while preserving income hierarchy',
+    (WidgetTester tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildTestApp(data: hierarchyTransactions()));
+      await tester.pumpAndSettle();
+
+      final Iterable<HiFiListRow> rows = tester.widgetList<HiFiListRow>(
+        find.byType(HiFiListRow),
+      );
+
+      expect(
+        rows,
+        contains(
+          isA<HiFiListRow>()
+              .having((HiFiListRow row) => row.title, 'title', 'Bread Bacon')
+              .having(
+                (HiFiListRow row) => row.meta,
+                'meta',
+                'Stock Purchase · Card',
+              ),
+        ),
+      );
+      expect(
+        rows,
+        contains(
+          isA<HiFiListRow>()
+              .having((HiFiListRow row) => row.title, 'title', 'Yusuf abi')
+              .having(
+                (HiFiListRow row) => row.meta,
+                'meta',
+                'Staff Wages · Cash',
+              ),
+        ),
+      );
+      expect(
+        rows,
+        contains(
+          isA<HiFiListRow>()
+              .having((HiFiListRow row) => row.title, 'title', 'Fuel')
+              .having((HiFiListRow row) => row.meta, 'meta', 'Fuel · Cash'),
+        ),
+      );
+      expect(
+        rows,
+        contains(
+          isA<HiFiListRow>()
+              .having((HiFiListRow row) => row.title, 'title', 'Card Sales')
+              .having(
+                (HiFiListRow row) => row.meta,
+                'meta',
+                'Card Sales · Card · Direct',
+              ),
+        ),
+      );
+    },
+  );
 
   testWidgets(
     'collapsing a group hides only its rows and keeps the header visible',

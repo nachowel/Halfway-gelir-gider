@@ -1,4 +1,4 @@
-package com.nacho.gider
+package com.gider.app
 
 import android.os.Bundle
 import android.view.WindowManager
@@ -7,7 +7,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
-    private val secureChannelName = "com.nacho.gider/window_secure"
+    private val secureChannelName = "com.gider.app/window_secure"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

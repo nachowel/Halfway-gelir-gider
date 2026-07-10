@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gider/data/app_models.dart';
 import 'package:gider/features/net_profit_detail/domain/net_profit_detail_models.dart';
 import 'package:gider/features/net_profit_detail/domain/net_profit_detail_service.dart';
 import 'package:gider/l10n/app_locale.dart';
@@ -34,26 +35,43 @@ void main() {
             occurredOn: DateTime(2026, 4, 20, 10),
             amountMinor: 10000,
             type: NetProfitTransactionType.income,
+            categoryName: 'Card Sales',
+            paymentMethod: PaymentMethodType.card,
+            sourcePlatform: SourcePlatformType.direct,
+            vendor: 'Card Sales',
           ),
           NetProfitDetailTransaction(
             occurredOn: DateTime(2026, 4, 20, 12),
             amountMinor: 3000,
             type: NetProfitTransactionType.expense,
+            categoryName: 'Stock Purchase',
+            paymentMethod: PaymentMethodType.card,
+            vendor: 'Bread Bacon',
           ),
           NetProfitDetailTransaction(
             occurredOn: DateTime(2026, 4, 21, 10),
             amountMinor: 5000,
             type: NetProfitTransactionType.income,
+            categoryName: 'Cash Sales',
+            paymentMethod: PaymentMethodType.cash,
+            sourcePlatform: SourcePlatformType.direct,
+            vendor: 'Cash Sales',
           ),
           NetProfitDetailTransaction(
             occurredOn: DateTime(2026, 4, 21, 12),
             amountMinor: 7000,
             type: NetProfitTransactionType.expense,
+            categoryName: 'Staff Wages',
+            paymentMethod: PaymentMethodType.cash,
+            staffName: 'Yusuf abi',
           ),
           NetProfitDetailTransaction(
             occurredOn: DateTime(2026, 4, 23, 12),
             amountMinor: 2000,
             type: NetProfitTransactionType.expense,
+            categoryName: 'Other Expense',
+            paymentMethod: PaymentMethodType.other,
+            vendor: 'Waste bags',
           ),
         ],
         strings: strings,
@@ -80,6 +98,106 @@ void main() {
       expect(viewModel.worstDayInsight.secondary, '-£20.00');
       expect(viewModel.averageDailyProfitInsight.primary, '£4.29');
       expect(viewModel.isEmpty, isFalse);
+      expect(
+        viewModel.incomePaymentBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitPaymentBreakdown row) => total + row.amountMinor,
+        ),
+        viewModel.incomeMinor,
+      );
+      expect(
+        viewModel.expensePaymentBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitPaymentBreakdown row) => total + row.amountMinor,
+        ),
+        viewModel.expenseMinor,
+      );
+      expect(
+        viewModel.dailyBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitDailyBreakdown row) => total + row.incomeMinor,
+        ),
+        viewModel.incomeMinor,
+      );
+      expect(
+        viewModel.dailyBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitDailyBreakdown row) => total + row.expenseMinor,
+        ),
+        viewModel.expenseMinor,
+      );
+      expect(viewModel.incomePaymentBreakdowns.map((r) => r.label), <String>[
+        'Cash',
+        'Card',
+      ]);
+      expect(viewModel.expensePaymentBreakdowns.map((r) => r.label), <String>[
+        'Cash expenses',
+        'Card expenses',
+        'Other expenses',
+      ]);
+      expect(viewModel.dailyBreakdowns[0].cashIncomeMinor, 0);
+      expect(viewModel.dailyBreakdowns[0].cardIncomeMinor, 10000);
+      expect(
+        viewModel.dailyBreakdowns[0].incomeTransactions.single.title,
+        'Card Sales',
+      );
+      expect(
+        viewModel.dailyBreakdowns[0].expenseTransactions.single.title,
+        'Bread Bacon',
+      );
+      expect(viewModel.dailyBreakdowns[1].netMinor, -2000);
+      expect(viewModel.dailyBreakdowns[2].netMinor, 0);
+      expect(
+        viewModel.expenseCategoryBreakdowns.map((r) => r.categoryName),
+        <String>['Staff Wages', 'Stock Purchase', 'Other Expense'],
+      );
+      expect(
+        viewModel.expenseCategoryBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitExpenseCategoryBreakdown row) =>
+              total + row.amountMinor,
+        ),
+        viewModel.expenseMinor,
+      );
+      expect(viewModel.incomeSourceBreakdowns.map((r) => r.label), <String>[
+        'Cash Sales',
+        'Card Sales',
+      ]);
+      expect(
+        viewModel.incomeSourceBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitIncomeSourceBreakdown row) =>
+              total + row.amountMinor,
+        ),
+        viewModel.incomeMinor,
+      );
+      for (final NetProfitIncomeSourceBreakdown row
+          in viewModel.incomeSourceBreakdowns) {
+        expect(
+          row.days.fold<int>(
+            0,
+            (int total, NetProfitIncomeSourceDayBreakdown day) =>
+                total + day.amountMinor,
+          ),
+          row.amountMinor,
+        );
+      }
+      expect(
+        viewModel.dailyBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitDailyBreakdown row) =>
+              total + row.incomeTransactions.length,
+        ),
+        2,
+      );
+      expect(
+        viewModel.dailyBreakdowns.fold<int>(
+          0,
+          (int total, NetProfitDailyBreakdown row) =>
+              total + row.expenseTransactions.length,
+        ),
+        3,
+      );
     });
 
     test('buildViewModel returns safe empty state with no transactions', () {

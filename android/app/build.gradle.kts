@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.nacho.gider"
+    namespace = "com.gider.app"
     // Bumped from flutter.compileSdkVersion (35) → 36 because androidx.core:1.18.0
     // (pulled transitively by google_fonts) requires compileSdk ≥ 36.
     compileSdk = 36
@@ -25,8 +25,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.nacho.gider"
+        applicationId = "com.gider.app"
         // androidx.core:core-ktx:1.18.0 (via google_fonts) requires minSdk ≥ 23.
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
